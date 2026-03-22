@@ -15,6 +15,9 @@
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -35,7 +38,7 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -74,9 +77,9 @@
       border-bottom: 1px solid rgba(0,0,0,0.08);
     }
     .header h1 {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--primary);
+      display: flex;
+      align-items: center;
+      line-height: 0;
     }
     .header-actions { display: flex; gap: 8px; }
 
@@ -177,9 +180,8 @@
       gap: 32px;
     }
     .auth-logo {
-      font-size: 48px;
-      font-weight: 800;
-      color: var(--primary);
+      display: flex;
+      justify-content: center;
     }
     .auth-subtitle { color: var(--text-muted); font-size: 15px; text-align: center; }
     .auth-form { width: 100%; display: flex; flex-direction: column; gap: 16px; }
@@ -808,7 +810,19 @@
 
     <!-- AUTH SCREEN -->
     <div id="auth-screen" class="screen auth-screen active">
-      <div class="auth-logo">Match Play</div>
+      <div class="auth-logo">
+        <svg width="240" height="60" viewBox="0 0 320 80" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(0, 4)">
+            <circle cx="36" cy="36" r="34" fill="none" stroke="#D4A843" stroke-width="1.5" opacity="0.3"/>
+            <line x1="36" y1="12" x2="36" y2="62" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M38 14 C38 14, 56 14, 56 24 C56 31, 47 33, 38 28 Z" fill="#D4A843"/>
+            <circle cx="36" cy="64" r="4" fill="#1a1a1a"/>
+            <path d="M18 42 C22 38, 28 36, 36 36 C44 36, 50 38, 54 42" fill="none" stroke="#D4A843" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+          </g>
+          <text x="88" y="35" font-family="Outfit, sans-serif" font-weight="800" font-size="28" fill="#1a1a1a" letter-spacing="1">MATCH</text>
+          <text x="88" y="62" font-family="Outfit, sans-serif" font-weight="300" font-size="28" fill="#D4A843" letter-spacing="4">PLAY</text>
+        </svg>
+      </div>
       <p class="auth-subtitle">Find your perfect golf partner</p>
       <div class="auth-form">
         <div class="input-group">
@@ -909,7 +923,19 @@
     <!-- DISCOVER SCREEN -->
     <div id="discover-screen" class="screen discover-screen">
       <div class="header">
-        <h1>Match Play</h1>
+        <h1>
+          <svg width="140" height="36" viewBox="0 0 320 80" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(0, 4)">
+              <circle cx="36" cy="36" r="34" fill="none" stroke="#D4A843" stroke-width="1.5" opacity="0.3"/>
+              <line x1="36" y1="12" x2="36" y2="62" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M38 14 C38 14, 56 14, 56 24 C56 31, 47 33, 38 28 Z" fill="#D4A843"/>
+              <circle cx="36" cy="64" r="4" fill="#1a1a1a"/>
+              <path d="M18 42 C22 38, 28 36, 36 36 C44 36, 50 38, 54 42" fill="none" stroke="#D4A843" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+            </g>
+            <text x="88" y="35" font-family="Outfit, sans-serif" font-weight="800" font-size="28" fill="#1a1a1a" letter-spacing="1">MATCH</text>
+            <text x="88" y="62" font-family="Outfit, sans-serif" font-weight="300" font-size="28" fill="#D4A843" letter-spacing="4">PLAY</text>
+          </svg>
+        </h1>
         <div class="header-actions">
           <button class="btn-ghost" onclick="showFilters()" title="Filters">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
