@@ -1304,16 +1304,14 @@
           <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">Select 1–3 opponents to play with.</p>
         </div>
         <div class="sg-section">
-          <div class="sg-section-title">Course</div>
-          <select id="sg-course" class="input" onchange="onSgCourseChange()">
-            <option value="">Select a course...</option>
-          </select>
+          <div class="sg-section-title">Nearby Courses</div>
+          <div id="sg-course-list" class="sg-player-list"></div>
+          <input type="hidden" id="sg-course" value="">
         </div>
-        <div class="sg-section">
+        <div class="sg-section" id="sg-tees-section" style="display:none;">
           <div class="sg-section-title">Tees</div>
-          <select id="sg-tees" class="input" disabled>
-            <option value="">Select a course first</option>
-          </select>
+          <div id="sg-tees-list" class="sg-mode-toggle" style="flex-wrap:wrap;"></div>
+          <input type="hidden" id="sg-tees" value="">
         </div>
         <div class="sg-section">
           <div class="sg-section-title">Holes</div>
@@ -2863,7 +2861,9 @@
       $('score-mine').value = '';
       $('score-theirs').value = '';
       $('score-strokes').value = '0';
-      $('score-tees').value = 'white';
+      // Reset tees to disabled state
+      $('score-tees').innerHTML = '<option value="">Select a course first</option>';
+      $('score-tees').disabled = true;
 
       // Populate course dropdown from demo venues
       const coords = getUserCoords();
@@ -2880,10 +2880,6 @@
     }
 
     function openScoreModalFromPlay() {
-      if (state.matches.length === 0) {
-        showToast('Match with players first!');
-        return;
-      }
       populateScoreModal(null);
     }
 
@@ -3108,16 +3104,11 @@
         list.appendChild(row);
       });
 
-      // Populate course dropdown
-      const coords = getUserCoords();
-      const courseSelect = $('sg-course');
-      courseSelect.innerHTML = '<option value="">Select a course...</option>';
-      if (coords) {
-        const venues = getDemoVenues(coords, 100).filter(v => v.type === 'course');
-        venues.forEach(v => {
-          courseSelect.innerHTML += `<option value="${v.name}" data-lat="${v.lat}" data-lng="${v.lng}">${v.name} (${v.dist.toFixed(0)} km)</option>`;
-        });
-      }
+      // Populate nearby courses list via GPS
+      $('sg-course').value = '';
+      $('sg-tees').value = '';
+      $('sg-tees-section').style.display = 'none';
+      populateNearbyCourses();
 
       showScreen('start-game');
     }
@@ -3209,9 +3200,77 @@
       teeSelect.disabled = false;
     }
 
+    function populateNearbyCourses() {
+      const list = $('sg-course-list');
+      const coords = getUserCoords();
+      list.innerHTML = '';
+      if (!coords) {
+        list.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Enable location to find nearby courses.</p>';
+        return;
+      }
+      const venues = getDemoVenues(coords, 50).filter(v => v.type === 'course');
+      if (venues.length === 0) {
+        list.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">No courses found nearby.</p>';
+        return;
+      }
+      venues.slice(0, 10).forEach(v => {
+        const row = document.createElement('div');
+        row.className = 'sg-player-row';
+        row.dataset.course = v.name;
+        row.dataset.lat = v.lat;
+        row.dataset.lng = v.lng;
+        row.onclick = () => selectCourse(v.name, v.lat, v.lng);
+        const distTxt = v.dist < 1 ? (v.dist * 1000).toFixed(0) + ' m' : v.dist.toFixed(1) + ' km';
+        const holesLabel = v.holes ? v.holes + ' holes' : '';
+        const typeLabel = v.isPrivate ? 'Private' : 'Public';
+        row.innerHTML = `
+          <div class="avatar" style="font-size:20px;">&#9971;</div>
+          <div class="sg-player-info">
+            <div class="name">${v.name}</div>
+            <div class="meta">${distTxt} · ${holesLabel} · ${typeLabel}</div>
+          </div>
+          <div class="sg-check"></div>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function selectCourse(name, lat, lng) {
+      $('sg-course').value = name;
+      // Highlight selected course
+      document.querySelectorAll('#sg-course-list .sg-player-row').forEach(row => {
+        const selected = row.dataset.course === name;
+        row.classList.toggle('selected', selected);
+        row.querySelector('.sg-check').innerHTML = selected ? '&#10003;' : '';
+      });
+      // Show and populate tees for this course
+      const tees = getCourseTees(name);
+      const teesList = $('sg-tees-list');
+      teesList.innerHTML = '';
+      tees.forEach((t, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'sg-mode-btn' + (t.id === 'white' ? ' active' : '');
+        btn.dataset.tee = t.id;
+        btn.textContent = t.label;
+        btn.onclick = () => selectTee(t.id);
+        teesList.appendChild(btn);
+      });
+      $('sg-tees').value = 'white';
+      $('sg-tees-section').style.display = '';
+      // Store lat/lng on hidden input for startGame
+      $('sg-course').dataset.lat = lat;
+      $('sg-course').dataset.lng = lng;
+    }
+
+    function selectTee(teeId) {
+      $('sg-tees').value = teeId;
+      document.querySelectorAll('#sg-tees-list .sg-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tee === teeId);
+      });
+    }
+
     function onSgCourseChange() {
-      const courseName = $('sg-course').value;
-      populateTeesDropdown('sg-tees', courseName);
+      // Legacy — no longer used for dropdown, kept for compatibility
     }
 
     function startGame() {
@@ -3220,10 +3279,10 @@
       if (!courseName) { showToast('Select a course'); return; }
       const tees = $('sg-tees').value;
 
-      // Get course coords from select option
-      const opt = $('sg-course').selectedOptions[0];
-      const courseLat = parseFloat(opt.dataset.lat) || 0;
-      const courseLng = parseFloat(opt.dataset.lng) || 0;
+      // Get course coords from hidden input dataset
+      const courseEl = $('sg-course');
+      const courseLat = parseFloat(courseEl.dataset.lat) || 0;
+      const courseLng = parseFloat(courseEl.dataset.lng) || 0;
 
       // Build players array (current user first)
       const players = [{
