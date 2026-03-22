@@ -179,6 +179,25 @@
       overflow: hidden;
     }
     .avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
+    .location-mode-toggle { display: flex; gap: 8px; }
+    .loc-mode-btn {
+      flex: 1; padding: 10px 8px; border-radius: var(--radius);
+      background: var(--bg-input); border: 1.5px solid transparent;
+      color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 500;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.2s;
+    }
+    .loc-mode-btn.active {
+      border-color: var(--primary); color: var(--primary-light);
+      background: rgba(99,102,241,0.15);
+    }
+    .gps-status {
+      margin-top: 8px; padding: 10px 14px; border-radius: var(--radius);
+      background: var(--bg-input); font-size: 13px; color: var(--text-muted);
+    }
+    .gps-status.success { color: var(--accent-green); }
+    .gps-status.error { color: var(--accent-red); }
+    .gps-status .gps-coords { font-size: 11px; opacity: 0.7; margin-top: 2px; }
 
     /* ---- Discover / Cards ---- */
     .discover-screen { padding: 0; }
@@ -641,6 +660,44 @@
       line-height: 1;
     }
 
+    /* ---- Venues Screen ---- */
+    .venues-screen { padding: 0; }
+    .venues-list { flex: 1; overflow-y: auto; padding: 0 0 8px; }
+    .venue-type-toggle { display: flex; gap: 0; margin: 12px 20px; border-radius: var(--radius); overflow: hidden; }
+    .venue-type-btn {
+      flex: 1; padding: 10px; border: none; background: var(--bg-input);
+      color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .venue-type-btn.active { background: var(--primary); color: white; }
+    .venue-type-btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+    .venue-type-btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+    .venue-radius { display: flex; align-items: center; gap: 12px; padding: 0 20px 12px; }
+    .venue-radius label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+    .venue-radius input[type="range"] { flex: 1; accent-color: var(--primary); }
+    .venue-radius .radius-val { font-size: 13px; font-weight: 600; color: var(--text); min-width: 48px; text-align: right; }
+    .venue-card {
+      margin: 0 20px 10px; padding: 14px 16px;
+      background: var(--bg-card); border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .venue-card .venue-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+    .venue-card .venue-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .venue-card .venue-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .venue-card .venue-tag {
+      font-size: 10px; padding: 3px 8px; border-radius: 10px;
+      background: rgba(34,197,94,0.15); color: var(--accent-green);
+    }
+    .venue-card .venue-tag.private { background: rgba(234,179,8,0.15); color: var(--accent-yellow); }
+    .venue-card .venue-tag.simulator { background: rgba(99,102,241,0.15); color: var(--primary-light); }
+    .venues-loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+    .venues-loading .spinner {
+      width: 32px; height: 32px; border: 3px solid var(--bg-input);
+      border-top-color: var(--primary); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* ---- Toast ---- */
     .toast {
       position: fixed;
@@ -722,6 +779,21 @@
         </select>
       </div>
       <div class="input-group">
+        <label>Location Mode</label>
+        <div class="location-mode-toggle">
+          <button type="button" class="loc-mode-btn active" data-mode="gps" onclick="setLocationMode('gps')">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+            Use My Location
+          </button>
+          <button type="button" class="loc-mode-btn" data-mode="custom" onclick="setLocationMode('custom')">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Set Custom Location
+          </button>
+        </div>
+        <div id="gps-status" class="gps-status" style="display:none;"></div>
+      </div>
+      <div id="custom-location-fields">
+      <div class="input-group">
         <label>Country</label>
         <select id="setup-country" class="input" onchange="onCountryChange()">
           <option value="">Select country</option>
@@ -741,6 +813,7 @@
           <option value="">Select city</option>
         </select>
       </div>
+      </div><!-- end custom-location-fields -->
       <div class="input-group">
         <label>Handicap Index <span style="font-weight:400;color:var(--text-muted);">(optional, -10 to +54)</span></label>
         <input id="setup-handicap" class="input" type="number" placeholder="e.g. 15" min="-10" max="54" step="0.1">
@@ -832,6 +905,32 @@
       </div>
     </div>
 
+    <!-- VENUES SCREEN -->
+    <div id="venues-screen" class="screen venues-screen">
+      <div class="header"><h1>Courses & Simulators</h1></div>
+      <div class="venue-type-toggle">
+        <button class="venue-type-btn active" data-type="all" onclick="setVenueType('all')">All</button>
+        <button class="venue-type-btn" data-type="course" onclick="setVenueType('course')">Golf Courses</button>
+        <button class="venue-type-btn" data-type="simulator" onclick="setVenueType('simulator')">Simulators</button>
+      </div>
+      <div class="venue-radius">
+        <label>Search radius</label>
+        <input type="range" id="venue-radius" min="5" max="100" value="25" step="5" oninput="onVenueRadiusChange()" onchange="loadVenues()">
+        <span class="radius-val" id="venue-radius-val">25 km</span>
+      </div>
+      <div class="venues-list" id="venues-list">
+        <div class="venues-loading" id="venues-loading" style="display:none;">
+          <div class="spinner"></div>
+          <p>Searching for venues nearby...</p>
+        </div>
+        <div class="empty-state" id="venues-empty">
+          <div class="empty-icon">&#9971;</div>
+          <h3>Find courses & simulators</h3>
+          <p>Tap a venue type above to discover nearby venues.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- BOTTOM NAV -->
     <nav class="bottom-nav" id="bottom-nav" style="display:none;">
       <button class="nav-btn active" data-screen="discover" onclick="navigateTo('discover')">
@@ -841,6 +940,10 @@
       <button class="nav-btn" data-screen="matches" onclick="navigateTo('matches')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         Matches
+      </button>
+      <button class="nav-btn" data-screen="venues" onclick="navigateTo('venues')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        Courses
       </button>
       <button class="nav-btn" data-screen="profile" onclick="navigateTo('profile')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -919,6 +1022,60 @@
     const SUPABASE_KEY = '';
 
     const AVATARS = ['&#127948;','&#9971;','&#127948;','&#9971;','&#127948;','&#9971;','&#127948;','&#9971;'];
+
+    // ========== CITY COORDINATES (lat, lng) ==========
+    const CITY_COORDS = {
+      // Ontario
+      'Toronto': [43.6532, -79.3832], 'Ottawa': [45.4215, -75.6972], 'Mississauga': [43.5890, -79.6441],
+      'Brampton': [43.7315, -79.7624], 'Hamilton': [43.2557, -79.8711], 'London': [42.9849, -81.2453],
+      'Markham': [43.8561, -79.3370], 'Vaughan': [43.8361, -79.4983], 'Kitchener': [43.4516, -80.4925],
+      'Windsor': [42.3149, -83.0364], 'Richmond Hill': [43.8828, -79.4403], 'Oakville': [43.4675, -79.6877],
+      'Burlington': [43.3255, -79.7990], 'Oshawa': [43.8971, -78.8658], 'Barrie': [44.3894, -79.6903],
+      'St. Catharines': [43.1594, -79.2469], 'Cambridge': [43.3616, -80.3144], 'Kingston': [44.2312, -76.4860],
+      'Guelph': [43.5448, -80.2482], 'Thunder Bay': [48.3809, -89.2477], 'Waterloo': [43.4643, -80.5204],
+      'Brantford': [43.1394, -80.2644], 'Pickering': [43.8354, -79.0890], 'Niagara Falls': [43.0896, -79.0849],
+      'Peterborough': [44.3091, -78.3197], 'Sault Ste. Marie': [46.5219, -84.3461], 'Sarnia': [42.9745, -82.4066],
+      'Welland': [42.9923, -79.2487], 'Belleville': [44.1628, -77.3832], 'North Bay': [46.3091, -79.4608],
+      'Cornwall': [45.0181, -74.7281], 'Woodstock': [43.1306, -80.7468], 'Stratford': [43.3700, -80.9822],
+      'Orillia': [44.6082, -79.4197], 'Cobourg': [43.9594, -78.1677], 'Collingwood': [44.5001, -80.2170],
+      'Muskoka': [45.0000, -79.3000], 'Orangeville': [43.9197, -80.0943], 'Milton': [43.5183, -79.8774], 'Ajax': [43.8509, -79.0204],
+      // Major Canadian cities
+      'Vancouver': [49.2827, -123.1207], 'Victoria': [48.4284, -123.3656], 'Burnaby': [49.2488, -122.9805],
+      'Surrey': [49.1913, -122.8490], 'Kelowna': [49.8880, -119.4960], 'Calgary': [51.0447, -114.0719],
+      'Edmonton': [53.5461, -113.4938], 'Montreal': [45.5017, -73.5673], 'Quebec City': [46.8139, -71.2080],
+      'Winnipeg': [49.8951, -97.1384], 'Saskatoon': [52.1332, -106.6700], 'Regina': [50.4452, -104.6189],
+      'Halifax': [44.6488, -63.5752], 'Fredericton': [45.9636, -66.6431], "St. John's": [47.5615, -52.7126],
+      'Charlottetown': [46.2382, -63.1311], 'Yellowknife': [62.4540, -114.3718], 'Whitehorse': [60.7212, -135.0568],
+      // Major US cities
+      'New York City': [40.7128, -74.0060], 'Los Angeles': [34.0522, -118.2437], 'Chicago': [41.8781, -87.6298],
+      'Houston': [29.7604, -95.3698], 'Phoenix': [33.4484, -112.0740], 'San Francisco': [37.7749, -122.4194],
+      'Seattle': [47.6062, -122.3321], 'Miami': [25.7617, -80.1918], 'Dallas': [32.7767, -96.7970],
+      'Boston': [42.3601, -71.0589], 'Atlanta': [33.7490, -84.3880], 'Denver': [39.7392, -104.9903],
+      'Detroit': [42.3314, -83.0458], 'Minneapolis': [44.9778, -93.2650], 'San Diego': [32.7157, -117.1611],
+      'Tampa': [27.9506, -82.4572], 'Portland': [45.5152, -122.6784], 'Austin': [30.2672, -97.7431],
+      'Las Vegas': [36.1699, -115.1398], 'Orlando': [28.5383, -81.3792], 'Charlotte': [35.2271, -80.8431],
+      'Nashville': [36.1627, -86.7816], 'Buffalo': [42.8864, -78.8784], 'Rochester': [43.1566, -77.6088],
+      'Scottsdale': [33.4942, -111.9261], 'Pebble Beach': [36.5725, -121.9486], 'Palm Springs': [33.8303, -116.5453],
+      'Myrtle Beach': [33.6891, -78.8867], 'Hilton Head': [32.2163, -80.7526], 'Ponte Vedra Beach': [30.2397, -81.3856],
+      'Augusta': [33.4735, -82.0105], 'Pinehurst': [35.1954, -79.4695]
+    };
+
+    // ========== HAVERSINE DISTANCE ==========
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function getCoordsForProfile(profile) {
+      if (profile.lat != null && profile.lng != null) return [profile.lat, profile.lng];
+      if (profile.city && CITY_COORDS[profile.city]) return CITY_COORDS[profile.city];
+      return null;
+    }
 
     // ========== LOCATION DATA ==========
     const LOCATION_DATA = {
@@ -1021,14 +1178,14 @@
 
     // ========== DEMO DATA ==========
     const DEMO_PROFILES = [
-      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', country: 'CA', region: 'ON', city: 'Toronto', distance: 5, handicap: 4.2, budget: 150, bio: 'Single-digit handicap chasing scratch. Love playing the premium courses around the GTA. Always down for a competitive round!', avatar: '&#127948;' },
-      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', country: 'CA', region: 'ON', city: 'Mississauga', distance: 12, handicap: 18.5, budget: 75, bio: 'Mid-handicapper working on my short game. I play Lakeview and Credit Valley mostly — it\'s about the walk, not the wallet!', avatar: '&#127948;' },
-      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', country: 'CA', region: 'ON', city: 'Brampton', distance: 18, handicap: 36.0, budget: 50, bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners. Budget-friendly courses preferred.', avatar: '&#9971;' },
-      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', country: 'CA', region: 'ON', city: 'Oakville', distance: 30, handicap: -1.4, budget: 200, bio: 'Plus handicap, competed in university. I play Glen Abbey, RattleSnake Point. Looking for serious playing partners.', avatar: '&#127948;' },
-      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', country: 'CA', region: 'ON', city: 'Markham', distance: 15, handicap: 14.0, budget: 100, bio: 'Bogey golfer who loves a good time on the course. Angus Glen is my home course. Let\'s tee it up!', avatar: '&#9971;' },
-      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', country: 'CA', region: 'ON', city: 'Hamilton', distance: 45, handicap: 28.3, budget: 50, bio: 'High handicapper but improving fast! I stick to affordable public courses around the Hammer. Looking for chill playing partners.', avatar: '&#127948;' },
-      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', country: 'CA', region: 'ON', city: 'Vaughan', distance: 8, handicap: 1.8, budget: 300, bio: 'Scratch golfer, former OUA player. I play everywhere from munis to private clubs. Down for any stakes.', avatar: '&#127948;' },
-      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', country: 'CA', region: 'ON', city: 'Richmond Hill', distance: 10, handicap: 42.0, budget: 30, bio: 'Total beginner — just got my first set of clubs! Looking for someone patient. Twilight rounds at Mill Pond are my thing.', avatar: '&#9971;' }
+      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', country: 'CA', region: 'ON', city: 'Toronto', lat: 43.6700, lng: -79.3900, handicap: 4.2, budget: 150, bio: 'Single-digit handicap chasing scratch. Love playing the premium courses around the GTA. Always down for a competitive round!', avatar: '&#127948;' },
+      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', country: 'CA', region: 'ON', city: 'Mississauga', lat: 43.5890, lng: -79.6441, handicap: 18.5, budget: 75, bio: 'Mid-handicapper working on my short game. I play Lakeview and Credit Valley mostly — it\'s about the walk, not the wallet!', avatar: '&#127948;' },
+      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', country: 'CA', region: 'ON', city: 'Brampton', lat: 43.7315, lng: -79.7624, handicap: 36.0, budget: 50, bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners. Budget-friendly courses preferred.', avatar: '&#9971;' },
+      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', country: 'CA', region: 'ON', city: 'Oakville', lat: 43.4675, lng: -79.6877, handicap: -1.4, budget: 200, bio: 'Plus handicap, competed in university. I play Glen Abbey, RattleSnake Point. Looking for serious playing partners.', avatar: '&#127948;' },
+      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', country: 'CA', region: 'ON', city: 'Markham', lat: 43.8561, lng: -79.3370, handicap: 14.0, budget: 100, bio: 'Bogey golfer who loves a good time on the course. Angus Glen is my home course. Let\'s tee it up!', avatar: '&#9971;' },
+      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', country: 'CA', region: 'ON', city: 'Hamilton', lat: 43.2557, lng: -79.8711, handicap: 28.3, budget: 50, bio: 'High handicapper but improving fast! I stick to affordable public courses around the Hammer. Looking for chill playing partners.', avatar: '&#127948;' },
+      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', country: 'CA', region: 'ON', city: 'Vaughan', lat: 43.8361, lng: -79.4983, handicap: 1.8, budget: 300, bio: 'Scratch golfer, former OUA player. I play everywhere from munis to private clubs. Down for any stakes.', avatar: '&#127948;' },
+      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', country: 'CA', region: 'ON', city: 'Richmond Hill', lat: 43.8828, lng: -79.4403, handicap: 42.0, budget: 30, bio: 'Total beginner — just got my first set of clubs! Looking for someone patient. Twilight rounds at Mill Pond are my thing.', avatar: '&#9971;' }
     ];
 
     const DEMO_USER = {
@@ -1039,6 +1196,8 @@
       country: 'CA',
       region: 'ON',
       city: 'Toronto',
+      lat: 43.6532,
+      lng: -79.3832,
       handicap: 12.0,
       budget: 100,
       bio: 'Demo mode — explore the app!',
@@ -1112,8 +1271,14 @@
     function enterDemoMode() {
       state.mode = 'demo';
       state.user = { ...DEMO_USER };
-      state.profiles = [...DEMO_PROFILES];
-      state.filteredProfiles = [...DEMO_PROFILES];
+      state.profiles = DEMO_PROFILES.map(p => ({ ...p }));
+      // Calculate real distances from demo user
+      const userCoords = [DEMO_USER.lat, DEMO_USER.lng];
+      state.profiles.forEach(p => {
+        const pc = getCoordsForProfile(p);
+        p.distance = pc ? Math.round(haversineKm(userCoords[0], userCoords[1], pc[0], pc[1])) : null;
+      });
+      state.filteredProfiles = [...state.profiles];
       state.cardIndex = 0;
       state.matches = [];
       state.conversations = {};
@@ -1581,6 +1746,8 @@
         renderCards();
       } else if (screen === 'matches') {
         renderMatchesList();
+      } else if (screen === 'venues') {
+        loadVenues();
       } else if (screen === 'profile') {
         renderProfile();
       }
@@ -1593,6 +1760,107 @@
       renderActiveFilterTags();
       renderProfile();
       showScreen('discover');
+    }
+
+    // ========== GEOLOCATION ==========
+    let locationMode = 'custom'; // 'gps' | 'custom'
+    let gpsLat = null, gpsLng = null;
+    let gpsWatchId = null;
+
+    function setLocationMode(mode) {
+      locationMode = mode;
+      document.querySelectorAll('.loc-mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
+      const customFields = $('custom-location-fields');
+      const gpsStatus = $('gps-status');
+      if (mode === 'gps') {
+        customFields.style.display = 'none';
+        gpsStatus.style.display = 'block';
+        requestGeolocation();
+      } else {
+        customFields.style.display = 'block';
+        gpsStatus.style.display = 'none';
+        stopGpsWatch();
+      }
+    }
+
+    function requestGeolocation() {
+      const status = $('gps-status');
+      if (!navigator.geolocation) {
+        status.className = 'gps-status error';
+        status.innerHTML = 'Geolocation is not supported by your browser.';
+        return;
+      }
+      status.className = 'gps-status';
+      status.innerHTML = 'Locating you...';
+      // Get position once first, then watch
+      navigator.geolocation.getCurrentPosition(
+        (pos) => onGpsSuccess(pos),
+        (err) => onGpsError(err),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+      // Start watching for updates
+      if (gpsWatchId != null) navigator.geolocation.clearWatch(gpsWatchId);
+      gpsWatchId = navigator.geolocation.watchPosition(
+        (pos) => onGpsSuccess(pos),
+        () => {}, // silent on watch errors
+        { enableHighAccuracy: true }
+      );
+    }
+
+    function onGpsSuccess(pos) {
+      gpsLat = pos.coords.latitude;
+      gpsLng = pos.coords.longitude;
+      const status = $('gps-status');
+      if (status) {
+        status.className = 'gps-status success';
+        status.innerHTML = `Location found <div class="gps-coords">${gpsLat.toFixed(4)}, ${gpsLng.toFixed(4)}</div>`;
+      }
+      // Update user coords
+      if (state.user) {
+        state.user.lat = gpsLat;
+        state.user.lng = gpsLng;
+        recalcDistances();
+      }
+    }
+
+    function onGpsError(err) {
+      const status = $('gps-status');
+      if (status) {
+        status.className = 'gps-status error';
+        const msgs = { 1: 'Permission denied. Please allow location access.', 2: 'Position unavailable.', 3: 'Location request timed out.' };
+        status.innerHTML = msgs[err.code] || 'Unable to get location.';
+      }
+    }
+
+    function stopGpsWatch() {
+      if (gpsWatchId != null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+      }
+    }
+
+    function recalcDistances() {
+      const userCoords = getUserCoords();
+      if (!userCoords) return;
+      state.profiles.forEach(p => {
+        const pc = getCoordsForProfile(p);
+        p.distance = pc ? Math.round(haversineKm(userCoords[0], userCoords[1], pc[0], pc[1])) : null;
+      });
+      filterProfiles();
+      renderCards();
+      renderActiveFilterTags();
+    }
+
+    function getUserCoords() {
+      if (state.user && state.user.lat != null && state.user.lng != null) {
+        return [state.user.lat, state.user.lng];
+      }
+      if (state.user && state.user.city && CITY_COORDS[state.user.city]) {
+        return CITY_COORDS[state.user.city];
+      }
+      return null;
     }
 
     // ========== LOCATION HELPERS ==========
@@ -1658,20 +1926,30 @@
       const name = $('setup-name').value.trim();
       const age = parseInt($('setup-age').value);
       const gender = $('setup-gender').value;
-      const country = $('setup-country').value;
-      const region = $('setup-region').value;
-      const city = $('setup-city').value;
       const handicap = $('setup-handicap').value ? parseFloat($('setup-handicap').value) : null;
       const budget = $('setup-budget').value ? parseInt($('setup-budget').value) : null;
       const bio = $('setup-bio').value.trim();
 
       if (!name) { showToast('Please enter your name'); return; }
       if (!age || age < 16) { showToast('Please enter a valid age'); return; }
-      if (!country) { showToast('Please select your country'); return; }
-      if (!region) { showToast('Please select your province/state'); return; }
-      if (!city) { showToast('Please select your city'); return; }
 
-      state.user = { ...state.user, name, age, gender, country, region, city, handicap, budget, bio, avatar: randomAvatar() };
+      let country, region, city, lat, lng;
+      if (locationMode === 'gps') {
+        if (gpsLat == null || gpsLng == null) { showToast('Waiting for GPS location...'); return; }
+        lat = gpsLat; lng = gpsLng;
+        country = ''; region = ''; city = '';
+      } else {
+        country = $('setup-country').value;
+        region = $('setup-region').value;
+        city = $('setup-city').value;
+        if (!country) { showToast('Please select your country'); return; }
+        if (!region) { showToast('Please select your province/state'); return; }
+        if (!city) { showToast('Please select your city'); return; }
+        const coords = CITY_COORDS[city];
+        if (coords) { lat = coords[0]; lng = coords[1]; }
+      }
+
+      state.user = { ...state.user, name, age, gender, country, region, city, lat, lng, handicap, budget, bio, locationMode, avatar: randomAvatar() };
 
       if (state.mode === 'live' && state.supabase) {
         await state.supabase.from('profiles').upsert({
@@ -1690,7 +1968,7 @@
       $('profile-name').textContent = state.user.name;
       const hcp = state.user.handicap != null ? `HCP ${state.user.handicap >= 0 ? '+' : ''}${state.user.handicap}` : '';
       const budget = state.user.budget ? `$${state.user.budget}/round` : '';
-      const loc = getLocationDisplay(state.user);
+      const loc = state.user.locationMode === 'gps' ? 'GPS Location' : getLocationDisplay(state.user);
       $('profile-meta').textContent = [state.user.age, loc, hcp, budget].filter(Boolean).join(' · ');
       $('stat-matches').textContent = state.matches.length;
       $('stat-played').textContent = '0';
@@ -1701,7 +1979,9 @@
       $('setup-name').value = state.user.name || '';
       $('setup-age').value = state.user.age || '';
       $('setup-gender').value = state.user.gender || 'prefer-not';
-      // Restore location dropdowns
+      // Restore location mode
+      const lm = state.user.locationMode || 'custom';
+      setLocationMode(lm);
       $('setup-country').value = state.user.country || '';
       if (state.user.country) {
         onCountryChange();
@@ -1763,6 +2043,183 @@
           time: msg.created_at
         }));
       }
+    }
+
+    // ========== VENUES (COURSES & SIMULATORS) ==========
+    let venueType = 'all'; // 'all' | 'course' | 'simulator'
+    let venueCache = {};   // key: "lat,lng,radius" -> results
+    let lastVenueSearch = '';
+
+    function setVenueType(type) {
+      venueType = type;
+      document.querySelectorAll('.venue-type-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.type === type);
+      });
+      loadVenues();
+    }
+
+    function onVenueRadiusChange() {
+      $('venue-radius-val').textContent = $('venue-radius').value + ' km';
+    }
+
+    async function loadVenues() {
+      const coords = getUserCoords();
+      if (!coords) {
+        $('venues-list').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128205;</div><h3>Location needed</h3><p>Set your location in Profile to discover nearby venues.</p></div>';
+        return;
+      }
+      const radiusKm = parseInt($('venue-radius').value);
+      const radiusM = radiusKm * 1000;
+      const cacheKey = `${coords[0].toFixed(3)},${coords[1].toFixed(3)},${radiusKm}`;
+
+      // Use cache if same search
+      if (venueCache[cacheKey]) {
+        renderVenues(venueCache[cacheKey]);
+        return;
+      }
+
+      $('venues-loading').style.display = 'block';
+      $('venues-empty').style.display = 'none';
+      // Clear existing venue cards
+      $('venues-list').querySelectorAll('.venue-card').forEach(c => c.remove());
+
+      try {
+        // Fetch golf courses from Overpass API
+        const overpassQuery = `[out:json][timeout:15];(
+          nwr["leisure"="golf_course"](around:${radiusM},${coords[0]},${coords[1]});
+          nwr["sport"="golf"](around:${radiusM},${coords[0]},${coords[1]});
+          nwr["golf"="driving_range"](around:${radiusM},${coords[0]},${coords[1]});
+        );out center tags;`;
+        const resp = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(overpassQuery)
+        });
+        const data = await resp.json();
+
+        const venues = [];
+        const seen = new Set();
+        (data.elements || []).forEach(el => {
+          const name = el.tags && el.tags.name;
+          if (!name || seen.has(name)) return;
+          seen.add(name);
+          const lat = el.lat || (el.center && el.center.lat);
+          const lng = el.lon || (el.center && el.center.lon);
+          if (!lat || !lng) return;
+          const dist = haversineKm(coords[0], coords[1], lat, lng);
+          const isSimulator = !!(el.tags.leisure === 'pitch' || el.tags.sport === 'golf' && !el.tags.leisure ||
+            (name && /simulator|sim\b|indoor|virtual|screen/i.test(name)));
+          const access = el.tags.access || '';
+          const isPrivate = access === 'private' || access === 'members' || (el.tags.fee === 'membership');
+          venues.push({
+            name,
+            lat, lng, dist,
+            type: isSimulator ? 'simulator' : 'course',
+            isPrivate,
+            holes: el.tags.golf && el.tags.golf.match(/\d+/) ? el.tags.golf : (el.tags.holes || ''),
+            phone: el.tags.phone || el.tags['contact:phone'] || '',
+            website: el.tags.website || el.tags['contact:website'] || ''
+          });
+        });
+
+        // Also search for golf simulators specifically (indoor golf)
+        try {
+          const simQuery = `[out:json][timeout:10];(
+            nwr["leisure"="pitch"]["sport"="golf"](around:${radiusM},${coords[0]},${coords[1]});
+            nwr["name"~"simulator|indoor golf|golf sim|topgolf|x-golf|five iron",i](around:${radiusM},${coords[0]},${coords[1]});
+          );out center tags;`;
+          const simResp = await fetch('https://overpass-api.de/api/interpreter', {
+            method: 'POST',
+            body: 'data=' + encodeURIComponent(simQuery)
+          });
+          const simData = await simResp.json();
+          (simData.elements || []).forEach(el => {
+            const name = el.tags && el.tags.name;
+            if (!name || seen.has(name)) return;
+            seen.add(name);
+            const lat = el.lat || (el.center && el.center.lat);
+            const lng = el.lon || (el.center && el.center.lon);
+            if (!lat || !lng) return;
+            const dist = haversineKm(coords[0], coords[1], lat, lng);
+            venues.push({ name, lat, lng, dist, type: 'simulator', isPrivate: false, holes: '', phone: el.tags.phone || '', website: el.tags.website || '' });
+          });
+        } catch (e) { /* simulator search is optional */ }
+
+        venues.sort((a, b) => a.dist - b.dist);
+        venueCache[cacheKey] = venues;
+        renderVenues(venues);
+      } catch (e) {
+        $('venues-loading').style.display = 'none';
+        // Fallback to demo venues if API fails
+        const demoVenues = getDemoVenues(coords, radiusKm);
+        venueCache[cacheKey] = demoVenues;
+        renderVenues(demoVenues);
+      }
+    }
+
+    function getDemoVenues(coords, radiusKm) {
+      // Fallback demo venues for Ontario when Overpass API is unavailable
+      const demoList = [
+        { name: 'Glen Abbey Golf Course', lat: 43.4514, lng: -79.7083, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Angus Glen Golf Club', lat: 43.8725, lng: -79.3150, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'RattleSnake Point Golf Club', lat: 43.4700, lng: -79.8900, type: 'course', isPrivate: false, holes: '27' },
+        { name: 'St. George\'s Golf & Country Club', lat: 43.6550, lng: -79.5200, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Lionhead Golf Club', lat: 43.7100, lng: -79.7700, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Credit Valley Golf & Country Club', lat: 43.5650, lng: -79.6850, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Lakeview Golf Course', lat: 43.5800, lng: -79.5650, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Don Valley Golf Course', lat: 43.6950, lng: -79.3550, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Humber Valley Golf Course', lat: 43.6600, lng: -79.5050, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Mill Pond Golf Course', lat: 43.8900, lng: -79.4400, type: 'course', isPrivate: false, holes: '9' },
+        { name: 'Golf Town Indoor Simulator - Vaughan', lat: 43.8200, lng: -79.5300, type: 'simulator', isPrivate: false, holes: '' },
+        { name: 'X-Golf Toronto', lat: 43.6550, lng: -79.3800, type: 'simulator', isPrivate: false, holes: '' },
+        { name: 'Five Iron Golf - Toronto', lat: 43.6470, lng: -79.3900, type: 'simulator', isPrivate: false, holes: '' },
+        { name: 'TeeBox Indoor Golf', lat: 43.7700, lng: -79.4100, type: 'simulator', isPrivate: false, holes: '' },
+        { name: 'Clubhouse Indoor Golf', lat: 43.5900, lng: -79.6400, type: 'simulator', isPrivate: false, holes: '' },
+        { name: 'Par-Tee Indoor Golf Lounge', lat: 43.7350, lng: -79.7500, type: 'simulator', isPrivate: false, holes: '' }
+      ];
+      return demoList.map(v => ({
+        ...v,
+        dist: haversineKm(coords[0], coords[1], v.lat, v.lng),
+        phone: '', website: ''
+      })).filter(v => v.dist <= radiusKm).sort((a, b) => a.dist - b.dist);
+    }
+
+    function renderVenues(venues) {
+      $('venues-loading').style.display = 'none';
+      const list = $('venues-list');
+      list.querySelectorAll('.venue-card').forEach(c => c.remove());
+      $('venues-empty').style.display = 'none';
+
+      const radiusKm = parseInt($('venue-radius').value);
+      let filtered = venues.filter(v => v.dist <= radiusKm);
+      if (venueType !== 'all') {
+        filtered = filtered.filter(v => v.type === venueType);
+      }
+
+      if (filtered.length === 0) {
+        $('venues-empty').style.display = 'block';
+        $('venues-empty').innerHTML = `<div class="empty-icon">&#9971;</div><h3>No ${venueType === 'simulator' ? 'simulators' : venueType === 'course' ? 'courses' : 'venues'} found</h3><p>Try increasing your search radius.</p>`;
+        return;
+      }
+
+      filtered.forEach(v => {
+        const card = document.createElement('div');
+        card.className = 'venue-card';
+        const typeTag = v.type === 'simulator'
+          ? '<span class="venue-tag simulator">Indoor Simulator</span>'
+          : '<span class="venue-tag">Golf Course</span>';
+        const accessTag = v.isPrivate ? '<span class="venue-tag private">Private</span>' : '<span class="venue-tag">Public</span>';
+        const holesTag = v.holes ? `<span class="venue-tag">${v.holes} holes</span>` : '';
+        card.innerHTML = `
+          <div class="venue-name">${v.name}</div>
+          <div class="venue-meta">${v.dist.toFixed(1)} km away${v.phone ? ' · ' + v.phone : ''}</div>
+          <div class="venue-tags">${typeTag}${v.type !== 'simulator' ? accessTag : ''}${holesTag}</div>
+        `;
+        if (v.website) {
+          card.style.cursor = 'pointer';
+          card.onclick = () => window.open(v.website, '_blank');
+        }
+        list.appendChild(card);
+      });
     }
 
     // ========== INIT ==========
