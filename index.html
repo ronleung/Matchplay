@@ -972,41 +972,42 @@
 
     /* Scorecard Area */
     .lg-scorecard {
-      flex: 1; overflow-y: auto; padding: 12px;
+      flex: 1; overflow: auto; padding: 8px 12px;
     }
-    .lg-scores-header {
-      display: flex; align-items: center; padding: 8px 0; gap: 6px;
-      font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
-    }
-    .lg-scores-header .player-col { flex: 1; }
-    .lg-scores-header .score-col { width: 48px; text-align: center; }
-    .lg-scores-header .total-col { width: 48px; text-align: center; }
-    .lg-scores-header .status-col { width: 50px; text-align: center; }
 
-    .lg-score-row {
-      display: flex; align-items: center; padding: 10px 0; gap: 6px;
-      border-bottom: 1px solid rgba(0,0,0,0.04);
-    }
-    .lg-score-row .player-col { flex: 1; display: flex; align-items: center; gap: 8px; }
-    .lg-score-row .player-col .avatar { width: 30px; height: 30px; font-size: 14px; }
-    .lg-score-row .player-col .name { font-weight: 600; font-size: 13px; }
-    .lg-score-row .score-col { width: 48px; text-align: center; }
-    .lg-score-row .total-col { width: 48px; text-align: center; font-weight: 700; font-size: 15px; }
-    .lg-score-row .status-col { width: 50px; text-align: center; }
+    /* Scorecard grid table */
+    .lg-grid { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .lg-grid th, .lg-grid td { padding: 4px 2px; text-align: center; min-width: 32px; white-space: nowrap; }
+    .lg-grid th { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+    .lg-grid th.player-th { text-align: left; min-width: 64px; }
+    .lg-grid td.player-td { text-align: left; font-weight: 600; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70px; }
+    .lg-grid td.hole-current { background: rgba(37,99,235,0.08); border-radius: 6px; }
+    .lg-grid td.total-td { font-weight: 700; font-size: 13px; background: rgba(0,0,0,0.03); border-radius: 6px; }
+    .lg-grid td.status-td { font-size: 10px; font-weight: 700; padding: 2px 4px; }
+    .lg-grid .par-row td { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+
+    /* Score cell styling by relation to par */
+    .lg-grid .score-eagle { color: #f59e0b; font-weight: 700; }
+    .lg-grid .score-birdie { color: #ef4444; font-weight: 700; }
+    .lg-grid .score-par { font-weight: 600; }
+    .lg-grid .score-bogey { color: var(--text-muted); }
+    .lg-grid .score-dbl { color: var(--text-muted); font-size: 10px; }
 
     .lg-score-input {
-      width: 42px; height: 36px; border-radius: 8px; border: 1.5px solid rgba(0,0,0,0.1);
-      text-align: center; font-size: 16px; font-weight: 700; background: var(--bg-input);
+      width: 36px; height: 32px; border-radius: 6px; border: 1.5px solid rgba(0,0,0,0.1);
+      text-align: center; font-size: 15px; font-weight: 700; background: var(--bg-input);
       outline: none; transition: border-color 0.2s; -moz-appearance: textfield;
     }
     .lg-score-input:focus { border-color: var(--primary); }
     .lg-score-input::-webkit-inner-spin-button,
     .lg-score-input::-webkit-outer-spin-button { -webkit-appearance: none; }
 
-    .lg-match-status { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
+    .lg-match-status { font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 6px; display: inline-block; }
     .lg-match-status.up { background: rgba(46,173,86,0.12); color: #249847; }
     .lg-match-status.down { background: rgba(239,68,68,0.12); color: #dc2626; }
     .lg-match-status.as { background: rgba(107,114,128,0.12); color: #6b7280; }
+    .lg-match-status.dormie { background: rgba(245,158,11,0.12); color: #b45309; }
+    .lg-match-status.closed { background: rgba(107,114,128,0.08); color: #9ca3af; }
 
     /* Hole Dots */
     .lg-hole-dots {
@@ -1292,16 +1293,17 @@
       <div class="header"><h1>Start a Round</h1></div>
       <div class="start-game-content">
         <div class="sg-section">
-          <div class="sg-section-title">Scoring Mode</div>
-          <div class="sg-mode-toggle">
-            <button class="sg-mode-btn active" data-mode="stroke" onclick="setGameMode('stroke')">Stroke Play</button>
-            <button class="sg-mode-btn" data-mode="match" onclick="setGameMode('match')">Match Play</button>
-          </div>
-        </div>
-        <div class="sg-section">
           <div class="sg-section-title">Select Players</div>
           <div class="sg-player-list" id="sg-player-list"></div>
           <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">Select 1–3 opponents to play with.</p>
+        </div>
+        <div class="sg-section" id="sg-format-section" style="display:none;">
+          <div class="sg-section-title">Format</div>
+          <div class="sg-mode-toggle" id="sg-format-toggle">
+            <button class="sg-mode-btn active" data-mode="stroke" onclick="setGameMode('stroke')">Stroke Play</button>
+            <button class="sg-mode-btn" data-mode="match" onclick="setGameMode('match')">Match Play</button>
+          </div>
+          <p id="sg-format-hint" style="font-size:11px;color:var(--text-muted);margin-top:6px;display:none;"></p>
         </div>
         <div class="sg-section">
           <div class="sg-section-title">Nearby Courses</div>
@@ -2810,13 +2812,15 @@
         const resultClass = r.verified ? r.result : 'pending';
         const resultLabel = r.verified ? (r.result === 'win' ? 'Win' : r.result === 'loss' ? 'Loss' : 'Draw') : 'Pending';
         const strokesText = r.strokes && r.strokes !== '0' ? ` · Strokes: ${r.strokes}` : '';
+        const formatLabel = r.format === 'match_play' ? 'Match Play' : r.format === 'stroke_play' ? 'Stroke Play' : '';
+        const matchPlayStr = r.matchPlayResult ? ` · ${r.matchPlayResult}` : '';
 
         html += `<div class="history-card">
           <div class="history-header">
             <span class="history-opponent">${oppName}</span>
             <span class="history-result ${resultClass}">${resultLabel}</span>
           </div>
-          <div class="history-details">${r.course} · ${formatDate(r.date)} · ${capitalize(r.tees)} tees${strokesText}</div>
+          <div class="history-details">${r.course} · ${formatDate(r.date)} · ${capitalize(r.tees)} tees${formatLabel ? ' · ' + formatLabel : ''}${matchPlayStr}${strokesText}</div>
           <div class="history-scores">
             <div class="score-col">
               <div class="score-label">You</div>
@@ -3077,8 +3081,12 @@
       sgHoles = 18;
 
       // Reset UI
-      document.querySelectorAll('.sg-mode-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === 'stroke' || b.dataset.holes === '18');
+      $('sg-format-section').style.display = 'none';
+      document.querySelectorAll('#sg-format-toggle .sg-mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === 'stroke');
+      });
+      document.querySelectorAll('.sg-mode-btn[data-holes]').forEach(b => {
+        b.classList.toggle('active', b.dataset.holes === '18');
       });
 
       // Populate player list
@@ -3124,16 +3132,49 @@
         return;
       }
       // Update UI
-      document.querySelectorAll('.sg-player-row').forEach(row => {
+      document.querySelectorAll('#sg-player-list .sg-player-row').forEach(row => {
         const selected = sgSelectedPlayers.includes(row.dataset.id);
         row.classList.toggle('selected', selected);
         row.querySelector('.sg-check').innerHTML = selected ? '&#10003;' : '';
       });
+      // Update format section based on player count
+      updateFormatSection();
+    }
+
+    function updateFormatSection() {
+      const section = $('sg-format-section');
+      const hint = $('sg-format-hint');
+      const matchBtn = document.querySelector('#sg-format-toggle .sg-mode-btn[data-mode="match"]');
+      const count = sgSelectedPlayers.length;
+
+      if (count === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = '';
+
+      if (count === 1) {
+        // 2 players total — allow both formats
+        matchBtn.disabled = false;
+        matchBtn.style.opacity = '';
+        hint.style.display = 'none';
+      } else {
+        // 3-4 players total — force stroke play
+        sgGameMode = 'stroke';
+        document.querySelectorAll('#sg-format-toggle .sg-mode-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.mode === 'stroke');
+        });
+        matchBtn.disabled = true;
+        matchBtn.style.opacity = '0.4';
+        hint.textContent = 'Match Play is 1v1 only. Stroke Play is selected for groups.';
+        hint.style.display = '';
+      }
     }
 
     function setGameMode(mode) {
       sgGameMode = mode;
-      document.querySelectorAll('.sg-mode-btn[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+      document.querySelectorAll('#sg-format-toggle .sg-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     }
 
     function setGameHoles(n) {
@@ -3379,56 +3420,96 @@
       renderHoleDots();
 
       // Footer button labels
-      const isLast = h === gameState.holes;
-      $('lg-next-btn').innerHTML = isLast ? '&#127937; Finish Round' : 'Next Hole &#9654;';
+      updateFooterButton();
     }
 
     function renderGameScorecard() {
       const container = $('lg-scorecard');
       const h = gameState.currentHole;
       const isMatch = gameState.mode === 'match';
+      const numHoles = gameState.holes;
 
-      let html = `<div class="lg-scores-header">
-        <div class="player-col">Player</div>
-        <div class="score-col">Hole ${h}</div>
-        <div class="total-col">Total</div>
-        ${isMatch ? '<div class="status-col">Status</div>' : ''}
-      </div>`;
+      // Determine which 9-hole segment to show (scrollable context)
+      const segStart = h <= 9 ? 0 : 9;
+      const segEnd = h <= 9 ? Math.min(9, numHoles) : numHoles;
+      const segLabel = segStart === 0 ? (numHoles > 9 ? 'Front' : '') : 'Back';
 
+      let html = '<table class="lg-grid"><thead><tr>';
+      html += '<th class="player-th"></th>';
+      for (let i = segStart; i < segEnd; i++) {
+        const holeNum = i + 1;
+        html += `<th${holeNum === h ? ' style="color:var(--primary);"' : ''}>${holeNum}</th>`;
+      }
+      html += '<th>Tot</th>';
+      if (isMatch) html += '<th></th>';
+      html += '</tr></thead><tbody>';
+
+      // Par row
+      html += '<tr class="par-row"><td class="player-td" style="color:var(--text-muted);font-size:10px;">Par</td>';
+      let segParTotal = 0;
+      for (let i = segStart; i < segEnd; i++) {
+        segParTotal += gameState.holeData[i].par;
+        html += `<td${i + 1 === h ? ' class="hole-current"' : ''}>${gameState.holeData[i].par}</td>`;
+      }
+      html += `<td class="total-td" style="font-size:10px;">${segParTotal}</td>`;
+      if (isMatch) html += '<td></td>';
+      html += '</tr>';
+
+      // Player rows
       gameState.players.forEach((p, pi) => {
-        const currentScore = gameState.scores[p.id][h - 1];
-        const total = gameState.scores[p.id].reduce((s, v) => s + (v || 0), 0);
         const isMe = pi === 0;
+        const name = isMe ? 'You' : p.name.split(' ')[0];
 
-        // Match play status
-        let statusHtml = '';
-        if (isMatch && pi > 0) {
-          const ms = calcMatchScore(gameState.players[0].id, p.id);
-          if (ms > 0) statusHtml = `<div class="lg-match-status up">${ms} UP</div>`;
-          else if (ms < 0) statusHtml = `<div class="lg-match-status down">${Math.abs(ms)} DN</div>`;
-          else statusHtml = `<div class="lg-match-status as">AS</div>`;
+        html += `<tr><td class="player-td">${name}</td>`;
+
+        let segTotal = 0;
+        for (let i = segStart; i < segEnd; i++) {
+          const holeNum = i + 1;
+          const score = gameState.scores[p.id][i];
+          const par = gameState.holeData[i].par;
+          const isCurrent = holeNum === h;
+
+          if (isCurrent) {
+            // Editable input for current hole
+            html += `<td class="hole-current"><input class="lg-score-input" type="number" min="1" max="15"
+              value="${score || ''}" placeholder="${par}"
+              data-player="${p.id}" data-hole="${holeNum}"
+              oninput="onScoreInput(this)"
+              inputmode="numeric"></td>`;
+          } else if (score != null) {
+            let cls = '';
+            if (score <= par - 2) cls = 'score-eagle';
+            else if (score === par - 1) cls = 'score-birdie';
+            else if (score === par) cls = 'score-par';
+            else if (score === par + 1) cls = 'score-bogey';
+            else cls = 'score-dbl';
+            html += `<td class="${cls}">${score}</td>`;
+          } else {
+            html += '<td style="color:#ccc;">-</td>';
+          }
+          segTotal += score || 0;
         }
 
-        html += `<div class="lg-score-row">
-          <div class="player-col">
-            <div class="avatar">${p.avatar}</div>
-            <div class="name">${isMe ? 'You' : p.name.split(' ')[0]}</div>
-          </div>
-          <div class="score-col">
-            <input class="lg-score-input" type="number" min="1" max="15"
-              value="${currentScore || ''}" placeholder="${gameState.holeData[h-1].par}"
-              data-player="${p.id}" data-hole="${h}"
-              oninput="onScoreInput(this)"
-              inputmode="numeric">
-          </div>
-          <div class="total-col">${total || '-'}</div>
-          ${isMatch ? '<div class="status-col">' + statusHtml + '</div>' : ''}
-        </div>`;
+        html += `<td class="total-td">${segTotal || '-'}</td>`;
+
+        // Match play status column
+        if (isMatch) {
+          if (pi > 0) {
+            const matchInfo = calcMatchPlayStatus(gameState.players[0].id, p.id);
+            html += `<td class="status-td"><span class="lg-match-status ${matchInfo.cls}">${matchInfo.text}</span></td>`;
+          } else {
+            html += '<td></td>';
+          }
+        }
+
+        html += '</tr>';
       });
 
+      html += '</tbody></table>';
       container.innerHTML = html;
     }
 
+    // Simple match score: positive = myId is up, negative = myId is down
     function calcMatchScore(myId, oppId) {
       let score = 0;
       for (let i = 0; i < gameState.holes; i++) {
@@ -3442,6 +3523,48 @@
       return score;
     }
 
+    // Full match play status with early termination detection
+    function calcMatchPlayStatus(myId, oppId) {
+      let score = 0;
+      let holesPlayed = 0;
+      let matchClosedAtHole = null;
+
+      for (let i = 0; i < gameState.holes; i++) {
+        const myS = gameState.scores[myId][i];
+        const oppS = gameState.scores[oppId][i];
+        if (myS != null && oppS != null) {
+          if (myS < oppS) score++;
+          else if (myS > oppS) score--;
+          holesPlayed++;
+
+          // Check early termination: lead > remaining holes
+          const remaining = gameState.holes - (i + 1);
+          if (Math.abs(score) > remaining && remaining >= 0 && !matchClosedAtHole) {
+            matchClosedAtHole = i + 1;
+          }
+        }
+      }
+
+      const remaining = gameState.holes - holesPlayed;
+
+      if (matchClosedAtHole) {
+        const holesLeft = gameState.holes - matchClosedAtHole;
+        const winMargin = Math.abs(score);
+        const resultStr = holesLeft === 0 ? `${winMargin} UP` : `${winMargin} & ${holesLeft}`;
+        if (score > 0) return { text: resultStr, cls: 'closed up', score, closed: true, resultStr };
+        else return { text: resultStr, cls: 'closed down', score, closed: true, resultStr };
+      }
+
+      if (holesPlayed === 0) return { text: '-', cls: 'as', score: 0, closed: false, resultStr: null };
+
+      // Dormie: lead equals remaining holes
+      const isDormie = Math.abs(score) === remaining && remaining > 0;
+
+      if (score > 0) return { text: `${score} UP`, cls: isDormie ? 'dormie' : 'up', score, closed: false, resultStr: null };
+      if (score < 0) return { text: `${Math.abs(score)} DN`, cls: isDormie ? 'dormie' : 'down', score, closed: false, resultStr: null };
+      return { text: 'AS', cls: 'as', score: 0, closed: false, resultStr: null };
+    }
+
     function onScoreInput(input) {
       const playerId = input.dataset.player;
       const hole = parseInt(input.dataset.hole) - 1;
@@ -3451,8 +3574,23 @@
       } else if (input.value === '') {
         gameState.scores[playerId][hole] = null;
       }
-      // Update total display
+      // Update scorecard display
       renderGameScorecard();
+      // Update footer button for early match termination
+      updateFooterButton();
+    }
+
+    function updateFooterButton() {
+      const h = gameState.currentHole;
+      let isLast = h === gameState.holes;
+      if (gameState.mode === 'match' && gameState.players.length === 2) {
+        const allFilled = gameState.players.every(p => gameState.scores[p.id][h - 1] != null);
+        if (allFilled) {
+          const mi = calcMatchPlayStatus(gameState.players[0].id, gameState.players[1].id);
+          if (mi.closed) isLast = true;
+        }
+      }
+      $('lg-next-btn').innerHTML = isLast ? '&#127937; Finish Round' : 'Next Hole &#9654;';
     }
 
     function renderHoleDots() {
@@ -3479,6 +3617,15 @@
       if (!allFilled) {
         showToast('Enter scores for all players first');
         return;
+      }
+
+      // Check for match play early termination
+      if (gameState.mode === 'match' && gameState.players.length === 2) {
+        const matchInfo = calcMatchPlayStatus(gameState.players[0].id, gameState.players[1].id);
+        if (matchInfo.closed) {
+          showRoundComplete();
+          return;
+        }
       }
 
       if (gameState.currentHole >= gameState.holes) {
@@ -3751,8 +3898,19 @@
       stopGameGps();
 
       const duration = Math.round((new Date() - gameState.startTime) / 60000);
+      const formatName = gameState.mode === 'match' ? 'Match Play' : 'Stroke Play';
+
+      // For match play, check if match ended early
+      let matchEndNote = '';
+      if (gameState.mode === 'match' && gameState.players.length === 2) {
+        const mi = calcMatchPlayStatus(gameState.players[0].id, gameState.players[1].id);
+        if (mi.closed && mi.resultStr) {
+          matchEndNote = ` · ${mi.resultStr}`;
+        }
+      }
+
       $('rc-title').textContent = 'Round Complete!';
-      $('rc-subtitle').textContent = `${gameState.course.name} · ${gameState.holes} holes · ${duration} min`;
+      $('rc-subtitle').textContent = `${gameState.course.name} · ${formatName} · ${gameState.holes} holes · ${duration} min${matchEndNote}`;
 
       // Build scorecard tables (front 9 and back 9)
       const buildNineHtml = (start, end, label) => {
@@ -3797,36 +3955,79 @@
       $('rc-front-nine').innerHTML = buildNineHtml(0, Math.min(9, gameState.holes), 'Front Nine');
       $('rc-back-nine').innerHTML = gameState.holes > 9 ? buildNineHtml(9, gameState.holes, 'Back Nine') : '';
 
-      // Results summary
+      // Results summary — auto-calculated, never manual
       let resultsHtml = '<div style="margin-top:12px;">';
       const myId = gameState.players[0].id;
-      const myTotal = gameState.scores[myId].reduce((s, v) => s + (v || 0), 0);
       const totalPar = gameState.holeData.reduce((s, h) => s + h.par, 0);
+
+      // Player totals
+      const playerTotals = {};
+      gameState.players.forEach(p => {
+        playerTotals[p.id] = gameState.scores[p.id].reduce((s, v) => s + (v || 0), 0);
+      });
+
+      const myTotal = playerTotals[myId];
       const diff = myTotal - totalPar;
       const diffStr = diff === 0 ? 'E' : (diff > 0 ? '+' + diff : '' + diff);
-
       resultsHtml += `<div class="rc-result-row"><div class="rc-result-label">Your Total</div><div class="rc-result-value">${myTotal} (${diffStr})</div></div>`;
 
-      // Opponent results
-      gameState.players.slice(1).forEach(p => {
-        const oppTotal = gameState.scores[p.id].reduce((s, v) => s + (v || 0), 0);
+      if (gameState.mode === 'match') {
+        // Match Play: show result vs the single opponent
+        const opp = gameState.players[1];
+        const oppTotal = playerTotals[opp.id];
         const oppDiff = oppTotal - totalPar;
         const oppDiffStr = oppDiff === 0 ? 'E' : (oppDiff > 0 ? '+' + oppDiff : '' + oppDiff);
+        const matchInfo = calcMatchPlayStatus(myId, opp.id);
 
         let resultText, resultStyle;
-        if (gameState.mode === 'match') {
-          const ms = calcMatchScore(myId, p.id);
-          if (ms > 0) { resultText = `You win ${ms} UP`; resultStyle = 'color:#249847;'; }
-          else if (ms < 0) { resultText = `${p.name.split(' ')[0]} wins ${Math.abs(ms)} UP`; resultStyle = 'color:#dc2626;'; }
-          else { resultText = 'All Square'; resultStyle = 'color:#b45309;'; }
+        if (matchInfo.closed || matchInfo.score !== 0) {
+          if (matchInfo.score > 0) {
+            resultText = `You win ${matchInfo.resultStr || matchInfo.text}`;
+            resultStyle = 'color:#249847;';
+          } else {
+            resultText = `${opp.name.split(' ')[0]} wins ${matchInfo.resultStr || matchInfo.text}`;
+            resultStyle = 'color:#dc2626;';
+          }
         } else {
+          resultText = 'Halved';
+          resultStyle = 'color:#b45309;';
+        }
+
+        resultsHtml += `<div class="rc-result-row"><div class="rc-result-label">${opp.name} — ${oppTotal} (${oppDiffStr})</div><div class="rc-result-value" style="${resultStyle}">${resultText}</div></div>`;
+      } else {
+        // Stroke Play: show all players + pairwise results
+        gameState.players.slice(1).forEach(p => {
+          const oppTotal = playerTotals[p.id];
+          const oppDiff = oppTotal - totalPar;
+          const oppDiffStr = oppDiff === 0 ? 'E' : (oppDiff > 0 ? '+' + oppDiff : '' + oppDiff);
+
+          let resultText, resultStyle;
           if (myTotal < oppTotal) { resultText = 'You win!'; resultStyle = 'color:#249847;'; }
           else if (myTotal > oppTotal) { resultText = `${p.name.split(' ')[0]} wins`; resultStyle = 'color:#dc2626;'; }
           else { resultText = 'Draw!'; resultStyle = 'color:#b45309;'; }
-        }
 
-        resultsHtml += `<div class="rc-result-row"><div class="rc-result-label">${p.name} — ${oppTotal} (${oppDiffStr})</div><div class="rc-result-value" style="${resultStyle}">${resultText}</div></div>`;
-      });
+          resultsHtml += `<div class="rc-result-row"><div class="rc-result-label">${p.name} — ${oppTotal} (${oppDiffStr})</div><div class="rc-result-value" style="${resultStyle}">${resultText}</div></div>`;
+        });
+
+        // Show pairwise results between opponents too (for 3-4 player groups)
+        if (gameState.players.length > 2) {
+          resultsHtml += '<div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--text-muted);">All Pairwise Results</div>';
+          const allPlayers = gameState.players;
+          for (let i = 0; i < allPlayers.length; i++) {
+            for (let j = i + 1; j < allPlayers.length; j++) {
+              const a = allPlayers[i], b = allPlayers[j];
+              const aTotal = playerTotals[a.id], bTotal = playerTotals[b.id];
+              const aName = a.id === myId ? 'You' : a.name.split(' ')[0];
+              const bName = b.id === myId ? 'You' : b.name.split(' ')[0];
+              let pairResult;
+              if (aTotal < bTotal) pairResult = `<span style="color:#249847;">${aName} wins</span>`;
+              else if (aTotal > bTotal) pairResult = `<span style="color:#249847;">${bName} wins</span>`;
+              else pairResult = '<span style="color:#b45309;">Draw</span>';
+              resultsHtml += `<div class="rc-result-row" style="font-size:12px;"><div class="rc-result-label">${aName} (${aTotal}) vs ${bName} (${bTotal})</div><div class="rc-result-value">${pairResult}</div></div>`;
+            }
+          }
+        }
+      }
 
       resultsHtml += '</div>';
       $('rc-results').innerHTML = resultsHtml;
@@ -3842,57 +4043,157 @@
       if (!gameState) return;
 
       const myId = gameState.players[0].id;
-      const myTotal = gameState.scores[myId].reduce((s, v) => s + (v || 0), 0);
       const date = gameState.startTime.toISOString().split('T')[0];
+      const roundId = 'round-' + Date.now();
+      const holeDataCompact = gameState.holeData.map(h => ({ par: h.par, yards: h.yards }));
 
-      // Submit a result for each opponent
-      gameState.players.slice(1).forEach(p => {
-        const oppTotal = gameState.scores[p.id].reduce((s, v) => s + (v || 0), 0);
-        let result;
-        if (gameState.mode === 'match') {
-          const ms = calcMatchScore(myId, p.id);
-          result = ms > 0 ? 'win' : ms < 0 ? 'loss' : 'draw';
+      // Compute totals for all players
+      const totals = {};
+      gameState.players.forEach(p => {
+        totals[p.id] = gameState.scores[p.id].reduce((s, v) => s + (v || 0), 0);
+      });
+
+      // Build all pairwise match records
+      const allPlayers = gameState.players;
+      const matchEntries = [];
+
+      if (gameState.mode === 'match') {
+        // Match Play — only 2 players (1 opponent)
+        const opp = allPlayers[1];
+        const matchInfo = calcMatchPlayStatus(myId, opp.id);
+
+        let result, matchPlayResult;
+        if (matchInfo.score > 0) {
+          result = 'win';
+          matchPlayResult = matchInfo.resultStr || matchInfo.text;
+        } else if (matchInfo.score < 0) {
+          result = 'loss';
+          matchPlayResult = matchInfo.resultStr || matchInfo.text;
         } else {
-          result = myTotal < oppTotal ? 'win' : myTotal > oppTotal ? 'loss' : 'draw';
+          result = 'draw';
+          matchPlayResult = 'Halved';
         }
 
-        const entry = {
-          id: 'r-' + Date.now() + '-' + p.id,
+        matchEntries.push({
+          id: roundId + '-mp-' + opp.id,
+          roundId,
           date,
           course: gameState.course.name,
           tees: gameState.tees,
-          myScore: myTotal,
-          theirScore: oppTotal,
-          opponentId: p.id,
+          format: 'match_play',
+          holeCount: gameState.holes,
+          player1Id: myId,
+          player2Id: opp.id,
+          player1Score: totals[myId],
+          player2Score: totals[opp.id],
+          player1Result: result,
+          player2Result: result === 'win' ? 'loss' : result === 'loss' ? 'win' : 'draw',
+          matchPlayResult,
+          // Legacy fields for leaderboard compatibility
+          myScore: totals[myId],
+          theirScore: totals[opp.id],
+          opponentId: opp.id,
           strokes: '',
           result,
           verified: false,
           holeByHole: {
-            mode: gameState.mode,
+            mode: 'match',
             holes: gameState.holes,
             myScores: [...gameState.scores[myId]],
-            oppScores: [...gameState.scores[p.id]],
-            holeData: gameState.holeData.map(h => ({ par: h.par, yards: h.yards }))
-          }
-        };
+            oppScores: [...gameState.scores[opp.id]],
+            holeData: holeDataCompact
+          },
+          scorecards: allPlayers.map(p => ({
+            playerId: p.id,
+            scores: [...gameState.scores[p.id]]
+          }))
+        });
+      } else {
+        // Stroke Play — create pairwise records for every combination
+        for (let i = 0; i < allPlayers.length; i++) {
+          for (let j = i + 1; j < allPlayers.length; j++) {
+            const a = allPlayers[i], b = allPlayers[j];
+            const aTotal = totals[a.id], bTotal = totals[b.id];
 
+            let aResult, bResult;
+            if (aTotal < bTotal) { aResult = 'win'; bResult = 'loss'; }
+            else if (aTotal > bTotal) { aResult = 'loss'; bResult = 'win'; }
+            else { aResult = 'draw'; bResult = 'draw'; }
+
+            // Determine "my" perspective for leaderboard compatibility
+            const iAmA = a.id === myId;
+            const iAmB = b.id === myId;
+            const opponentId = iAmA ? b.id : iAmB ? a.id : b.id;
+            const myResult = iAmA ? aResult : iAmB ? bResult : null;
+
+            matchEntries.push({
+              id: roundId + '-sp-' + a.id + '-' + b.id,
+              roundId,
+              date,
+              course: gameState.course.name,
+              tees: gameState.tees,
+              format: 'stroke_play',
+              holeCount: gameState.holes,
+              player1Id: a.id,
+              player2Id: b.id,
+              player1Score: aTotal,
+              player2Score: bTotal,
+              player1Result: aResult,
+              player2Result: bResult,
+              matchPlayResult: null,
+              // Legacy fields for leaderboard compatibility
+              myScore: iAmA ? aTotal : bTotal,
+              theirScore: iAmA ? bTotal : aTotal,
+              opponentId,
+              strokes: '',
+              result: myResult || aResult,
+              verified: false,
+              holeByHole: {
+                mode: 'stroke',
+                holes: gameState.holes,
+                myScores: [...gameState.scores[a.id]],
+                oppScores: [...gameState.scores[b.id]],
+                holeData: holeDataCompact
+              },
+              scorecards: allPlayers.map(p => ({
+                playerId: p.id,
+                scores: [...gameState.scores[p.id]]
+              }))
+            });
+          }
+        }
+      }
+
+      // Push all match entries into state
+      matchEntries.forEach(entry => {
         state.matchResults.push(entry);
 
         // In demo mode, auto-verify
         if (state.mode === 'demo') {
           setTimeout(() => {
             entry.verified = true;
-            showToast(`${p.name} confirmed the score!`);
+            const oppName = allPlayers.find(p => p.id === entry.opponentId)?.name || 'Opponent';
+            showToast(`${oppName} confirmed the score!`);
             updateProfileStats();
           }, 1500 + Math.random() * 3000);
         }
+      });
 
-        // Add auto-message in chat
+      // Send chat messages to opponents
+      allPlayers.slice(1).forEach(p => {
         if (!state.conversations[p.id]) state.conversations[p.id] = [];
-        const resultEmoji = result === 'win' ? '&#127942;' : result === 'draw' ? '&#129309;' : '&#128170;';
+        const myTotal = totals[myId];
+        const oppTotal = totals[p.id];
+        let resultWord;
+        if (gameState.mode === 'match') {
+          const mi = calcMatchPlayStatus(myId, p.id);
+          resultWord = mi.score > 0 ? `I won ${mi.resultStr || mi.text}!` : mi.score < 0 ? `You won ${mi.resultStr || mi.text}!` : 'Match halved!';
+        } else {
+          resultWord = myTotal < oppTotal ? 'I won!' : myTotal > oppTotal ? 'You won!' : 'We tied!';
+        }
         state.conversations[p.id].push({
           from: state.user.id || 'me',
-          text: `Played ${gameState.holes} holes at ${gameState.course.name} (${gameState.mode} play). Score: ${myTotal} vs ${oppTotal}. ${result === 'win' ? 'I won!' : result === 'loss' ? 'You won!' : 'We tied!'}`,
+          text: `Played ${gameState.holes} holes at ${gameState.course.name} (${gameState.mode === 'match' ? 'Match' : 'Stroke'} Play). Score: ${myTotal} vs ${oppTotal}. ${resultWord}`,
           time: new Date().toISOString()
         });
       });
