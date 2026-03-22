@@ -959,9 +959,13 @@
       height: 220px; background: #1a3a1a; position: relative; overflow: hidden;
       display: flex; align-items: center; justify-content: center;
     }
-    .lg-map-canvas { width: 100%; height: 100%; }
+    .lg-map-satellite {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      object-fit: cover; z-index: 0;
+    }
+    .lg-map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
     .lg-gps-overlay {
-      position: absolute; bottom: 8px; left: 8px; right: 8px;
+      position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 2;
       display: flex; justify-content: space-between; pointer-events: none;
     }
     .lg-gps-badge {
@@ -1306,9 +1310,15 @@
           <p id="sg-format-hint" style="font-size:11px;color:var(--text-muted);margin-top:6px;display:none;"></p>
         </div>
         <div class="sg-section">
-          <div class="sg-section-title">Nearby Courses</div>
+          <div class="sg-section-title">Nearby Clubs</div>
           <div id="sg-course-list" class="sg-player-list"></div>
           <input type="hidden" id="sg-course" value="">
+          <input type="hidden" id="sg-sub-course" value="">
+        </div>
+        <div class="sg-section" id="sg-subcourse-section" style="display:none;">
+          <div class="sg-section-title">Select Course</div>
+          <div id="sg-subcourse-list" class="sg-mode-toggle" style="flex-wrap:wrap;"></div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">This club has multiple courses. Choose which one you're playing.</p>
         </div>
         <div class="sg-section" id="sg-tees-section" style="display:none;">
           <div class="sg-section-title">Tees</div>
@@ -1354,6 +1364,7 @@
 
       <!-- GPS Map -->
       <div class="lg-map-area">
+        <img id="lg-map-satellite" class="lg-map-satellite" alt="" draggable="false">
         <canvas id="lg-map-canvas" class="lg-map-canvas"></canvas>
         <div class="lg-gps-overlay">
           <div class="lg-gps-badge" id="lg-gps-par">Par 4</div>
@@ -2869,14 +2880,22 @@
       $('score-tees').innerHTML = '<option value="">Select a course first</option>';
       $('score-tees').disabled = true;
 
-      // Populate course dropdown from demo venues
+      // Populate course dropdown from demo venues (with sub-courses for multi-course clubs)
       const coords = getUserCoords();
       const courseSelect = $('score-course');
       courseSelect.innerHTML = '<option value="">Select a course...</option>';
       if (coords) {
         const venues = getDemoVenues(coords, 100).filter(v => v.type === 'course');
         venues.forEach(v => {
-          courseSelect.innerHTML += `<option value="${v.name}">${v.name} (${v.dist.toFixed(0)} km)</option>`;
+          if (v.courses && v.courses.length > 1) {
+            // Multi-course club — list each sub-course
+            v.courses.forEach(c => {
+              const fullName = `${v.name} - ${c.name}`;
+              courseSelect.innerHTML += `<option value="${fullName}">${v.name} — ${c.name} (${c.holes}h, ${v.dist.toFixed(0)} km)</option>`;
+            });
+          } else {
+            courseSelect.innerHTML += `<option value="${v.name}">${v.name} (${v.dist.toFixed(0)} km)</option>`;
+          }
         });
       }
 
@@ -3114,7 +3133,9 @@
 
       // Populate nearby courses list via GPS
       $('sg-course').value = '';
+      $('sg-sub-course').value = '';
       $('sg-tees').value = '';
+      $('sg-subcourse-section').style.display = 'none';
       $('sg-tees-section').style.display = 'none';
       populateNearbyCourses();
 
@@ -3241,15 +3262,24 @@
       teeSelect.disabled = false;
     }
 
+    // Cache nearby venues for sub-course lookup
+    let sgNearbyVenues = [];
+
     function populateNearbyCourses() {
       const list = $('sg-course-list');
       const coords = getUserCoords();
       list.innerHTML = '';
+      $('sg-subcourse-section').style.display = 'none';
+      $('sg-tees-section').style.display = 'none';
+      sgNearbyVenues = [];
+
       if (!coords) {
         list.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Enable location to find nearby courses.</p>';
         return;
       }
       const venues = getDemoVenues(coords, 50).filter(v => v.type === 'course');
+      sgNearbyVenues = venues;
+
       if (venues.length === 0) {
         list.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">No courses found nearby.</p>';
         return;
@@ -3260,15 +3290,16 @@
         row.dataset.course = v.name;
         row.dataset.lat = v.lat;
         row.dataset.lng = v.lng;
-        row.onclick = () => selectCourse(v.name, v.lat, v.lng);
+        row.onclick = () => selectClub(v.name);
         const distTxt = v.dist < 1 ? (v.dist * 1000).toFixed(0) + ' m' : v.dist.toFixed(1) + ' km';
         const holesLabel = v.holes ? v.holes + ' holes' : '';
         const typeLabel = v.isPrivate ? 'Private' : 'Public';
+        const multiCourseLabel = v.courses ? ` · ${v.courses.length} courses` : '';
         row.innerHTML = `
           <div class="avatar" style="font-size:20px;">&#9971;</div>
           <div class="sg-player-info">
             <div class="name">${v.name}</div>
-            <div class="meta">${distTxt} · ${holesLabel} · ${typeLabel}</div>
+            <div class="meta">${distTxt} · ${holesLabel} · ${typeLabel}${multiCourseLabel}</div>
           </div>
           <div class="sg-check"></div>
         `;
@@ -3276,19 +3307,61 @@
       });
     }
 
-    function selectCourse(name, lat, lng) {
-      $('sg-course').value = name;
-      // Highlight selected course
+    function selectClub(clubName) {
+      const venue = sgNearbyVenues.find(v => v.name === clubName);
+      if (!venue) return;
+
+      $('sg-course').value = clubName;
+      $('sg-sub-course').value = '';
+
+      // Highlight selected club
       document.querySelectorAll('#sg-course-list .sg-player-row').forEach(row => {
-        const selected = row.dataset.course === name;
+        const selected = row.dataset.course === clubName;
         row.classList.toggle('selected', selected);
         row.querySelector('.sg-check').innerHTML = selected ? '&#10003;' : '';
       });
-      // Show and populate tees for this course
-      const tees = getCourseTees(name);
+
+      if (venue.courses && venue.courses.length > 1) {
+        // Multi-course club — show sub-course picker
+        $('sg-subcourse-section').style.display = '';
+        const subList = $('sg-subcourse-list');
+        subList.innerHTML = '';
+        venue.courses.forEach(c => {
+          const btn = document.createElement('button');
+          btn.className = 'sg-mode-btn';
+          btn.dataset.subcourse = c.name;
+          btn.textContent = `${c.name} (${c.holes}h)`;
+          btn.onclick = () => selectSubCourse(clubName, c.name, c.lat, c.lng);
+          subList.appendChild(btn);
+        });
+        // Hide tees until sub-course is selected
+        $('sg-tees-section').style.display = 'none';
+      } else {
+        // Single-course club — go straight to tees
+        $('sg-subcourse-section').style.display = 'none';
+        $('sg-sub-course').value = '';
+        populateTees(clubName, venue.lat, venue.lng);
+      }
+    }
+
+    function selectSubCourse(clubName, subCourseName, lat, lng) {
+      $('sg-sub-course').value = subCourseName;
+
+      // Highlight selected sub-course button
+      document.querySelectorAll('#sg-subcourse-list .sg-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.subcourse === subCourseName);
+      });
+
+      // Use club + sub-course name for tee generation (makes tees unique per sub-course)
+      const fullCourseName = clubName + ' - ' + subCourseName;
+      populateTees(fullCourseName, lat, lng);
+    }
+
+    function populateTees(courseName, lat, lng) {
+      const tees = getCourseTees(courseName);
       const teesList = $('sg-tees-list');
       teesList.innerHTML = '';
-      tees.forEach((t, i) => {
+      tees.forEach(t => {
         const btn = document.createElement('button');
         btn.className = 'sg-mode-btn' + (t.id === 'white' ? ' active' : '');
         btn.dataset.tee = t.id;
@@ -3316,8 +3389,18 @@
 
     function startGame() {
       if (sgSelectedPlayers.length === 0) { showToast('Select at least one opponent'); return; }
-      const courseName = $('sg-course').value;
-      if (!courseName) { showToast('Select a course'); return; }
+      const clubName = $('sg-course').value;
+      if (!clubName) { showToast('Select a course'); return; }
+
+      // Check if multi-course club requires sub-course selection
+      const venue = sgNearbyVenues.find(v => v.name === clubName);
+      if (venue && venue.courses && venue.courses.length > 1 && !$('sg-sub-course').value) {
+        showToast('Select which course you\'re playing');
+        return;
+      }
+
+      const subCourse = $('sg-sub-course').value;
+      const courseName = subCourse ? `${clubName} - ${subCourse}` : clubName;
       const tees = $('sg-tees').value;
 
       // Get course coords from hidden input dataset
@@ -3729,27 +3812,31 @@
     }
 
     // ---- Hole Map Drawing (Canvas) ----
+    // Google Maps Static API key — set this to enable satellite hole maps
+    const GMAPS_API_KEY = '';
+
+    // Cache for satellite images to avoid re-fetching
+    let lastSatelliteUrl = '';
+
     function drawHoleMap(holeData) {
       const canvas = $('lg-map-canvas');
+      const satImg = $('lg-map-satellite');
       if (!canvas) return;
+
       const ctx = canvas.getContext('2d');
       const rect = canvas.parentElement.getBoundingClientRect();
-      canvas.width = rect.width * (window.devicePixelRatio || 1);
-      canvas.height = rect.height * (window.devicePixelRatio || 1);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
       canvas.style.width = rect.width + 'px';
       canvas.style.height = rect.height + 'px';
-      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      ctx.scale(dpr, dpr);
       const W = rect.width, H = rect.height;
 
-      // Background gradient (course green)
-      const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, '#1a4a2a');
-      grad.addColorStop(1, '#0d2a18');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
+      // Calculate bounds — center between tee and green with padding
+      const centerLat = (holeData.teeLat + holeData.greenLat) / 2;
+      const centerLng = (holeData.teeLng + holeData.greenLng) / 2;
 
-      // Calculate bounds
-      const pad = 40;
       const points = [
         { lat: holeData.teeLat, lng: holeData.teeLng },
         { lat: holeData.greenLat, lng: holeData.greenLng }
@@ -3758,87 +3845,72 @@
 
       const lats = points.map(p => p.lat);
       const lngs = points.map(p => p.lng);
-      const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-      const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-      const latRange = maxLat - minLat || 0.001;
-      const lngRange = maxLng - minLng || 0.001;
+      const padFactor = 0.3; // Extra 30% around edges
+      const rawLatRange = Math.max(...lats) - Math.min(...lats) || 0.001;
+      const rawLngRange = Math.max(...lngs) - Math.min(...lngs) || 0.001;
+      const minLat = Math.min(...lats) - rawLatRange * padFactor;
+      const maxLat = Math.max(...lats) + rawLatRange * padFactor;
+      const minLng = Math.min(...lngs) - rawLngRange * padFactor;
+      const maxLng = Math.max(...lngs) + rawLngRange * padFactor;
+      const latRange = maxLat - minLat;
+      const lngRange = maxLng - minLng;
 
       function toScreen(lat, lng) {
-        const x = pad + ((lng - minLng) / lngRange) * (W - 2 * pad);
-        const y = pad + ((maxLat - lat) / latRange) * (H - 2 * pad);
+        const x = ((lng - minLng) / lngRange) * W;
+        const y = ((maxLat - lat) / latRange) * H;
         return [x, y];
       }
+
+      // Load satellite imagery
+      loadSatelliteImage(satImg, centerLat, centerLng, holeData.yards, W, H);
+
+      // Clear canvas overlay (transparent)
+      ctx.clearRect(0, 0, W, H);
 
       const [teeX, teeY] = toScreen(holeData.teeLat, holeData.teeLng);
       const [greenX, greenY] = toScreen(holeData.greenLat, holeData.greenLng);
 
-      // Draw fairway (wide path from tee to green)
+      // Semi-transparent fairway path overlay (so it's visible on satellite)
       ctx.beginPath();
       ctx.moveTo(teeX, teeY);
       ctx.lineTo(greenX, greenY);
-      ctx.strokeStyle = '#2a6a3a';
-      ctx.lineWidth = 28;
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 20;
       ctx.lineCap = 'round';
       ctx.stroke();
 
-      // Fairway inner
+      // Green circle outline
       ctx.beginPath();
-      ctx.moveTo(teeX, teeY);
-      ctx.lineTo(greenX, greenY);
-      ctx.strokeStyle = '#3a8a4a';
-      ctx.lineWidth = 18;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-
-      // Draw rough borders
-      ctx.beginPath();
-      const dx = greenX - teeX, dy = greenY - teeY;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      const nx = -dy / len * 22, ny = dx / len * 22;
-      // Left rough
-      ctx.moveTo(teeX + nx * 1.5, teeY + ny * 1.5);
-      ctx.lineTo(greenX + nx * 0.8, greenY + ny * 0.8);
-      ctx.strokeStyle = '#1a5a2a';
-      ctx.lineWidth = 8;
-      ctx.stroke();
-      // Right rough
-      ctx.beginPath();
-      ctx.moveTo(teeX - nx * 1.5, teeY - ny * 1.5);
-      ctx.lineTo(greenX - nx * 0.8, greenY - ny * 0.8);
-      ctx.stroke();
-
-      // Draw green (circle)
-      ctx.beginPath();
-      ctx.arc(greenX, greenY, 16, 0, Math.PI * 2);
-      ctx.fillStyle = '#4aaa5a';
-      ctx.fill();
-      ctx.strokeStyle = '#2a8a3a';
+      ctx.arc(greenX, greenY, 14, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
       ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.fillStyle = 'rgba(46,173,86,0.3)';
+      ctx.fill();
 
       // Pin flag
       ctx.beginPath();
-      ctx.moveTo(greenX, greenY - 18);
+      ctx.moveTo(greenX, greenY - 16);
       ctx.lineTo(greenX, greenY + 2);
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(greenX, greenY - 18);
-      ctx.lineTo(greenX + 10, greenY - 14);
-      ctx.lineTo(greenX, greenY - 10);
+      ctx.moveTo(greenX, greenY - 16);
+      ctx.lineTo(greenX + 9, greenY - 12);
+      ctx.lineTo(greenX, greenY - 8);
       ctx.fillStyle = '#ef4444';
       ctx.fill();
 
-      // Tee box
-      ctx.fillStyle = '#6ab97a';
-      ctx.fillRect(teeX - 8, teeY - 4, 16, 8);
+      // Tee box marker
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillRect(teeX - 7, teeY - 3, 14, 6);
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(teeX - 8, teeY - 4, 16, 8);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(teeX - 7, teeY - 3, 14, 6);
 
-      // Draw yardage markers along fairway
-      const markers = [150, 100, 50];
+      // Yardage markers
+      const markers = [200, 150, 100, 50];
       const totalYards = holeData.yards;
       markers.forEach(yds => {
         if (yds >= totalYards) return;
@@ -3847,19 +3919,24 @@
         const my = teeY + (greenY - teeY) * pct;
         ctx.beginPath();
         ctx.arc(mx, my, 3, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.fill();
-        ctx.font = '9px system-ui';
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        // Text with shadow for satellite readability
+        ctx.font = 'bold 9px system-ui';
         ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillText(yds + '', mx + 1, my - 6);
+        ctx.fillStyle = '#fff';
         ctx.fillText(yds + '', mx, my - 7);
       });
 
-      // Label: Tee and Green
+      // Tee label with shadow
       ctx.font = 'bold 10px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillText('TEE', teeX, teeY + 20);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillText('TEE', teeX + 1, teeY + 19);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('TEE', teeX, teeY + 18);
 
       // Player position (GPS dot)
       if (currentGpsPos) {
@@ -3867,28 +3944,64 @@
 
         // Accuracy circle
         ctx.beginPath();
-        ctx.arc(px, py, 12, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(66,133,244,0.2)';
+        ctx.arc(px, py, 14, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(66,133,244,0.25)';
         ctx.fill();
 
         // Player dot
         ctx.beginPath();
-        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
         ctx.fillStyle = '#4285f4';
         ctx.fill();
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
         // Distance line from player to green
         ctx.beginPath();
         ctx.moveTo(px, py);
         ctx.lineTo(greenX, greenY);
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
         ctx.stroke();
         ctx.setLineDash([]);
+      }
+    }
+
+    function loadSatelliteImage(imgEl, centerLat, centerLng, yards, viewW, viewH) {
+      // Calculate appropriate zoom level based on hole yardage
+      let zoom;
+      if (yards <= 180) zoom = 18;
+      else if (yards <= 350) zoom = 17;
+      else if (yards <= 500) zoom = 17;
+      else zoom = 16;
+
+      const imgW = Math.min(640, Math.round(viewW * 2)); // 2x for retina, max 640 for free tier
+      const imgH = Math.min(640, Math.round(viewH * 2));
+
+      let url;
+      if (GMAPS_API_KEY) {
+        // Use Google Maps Static API satellite imagery
+        url = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=${imgW}x${imgH}&maptype=satellite&key=${GMAPS_API_KEY}`;
+      } else {
+        // Esri World Imagery (free satellite tiles, no key required)
+        // Calculate bounding box based on yardage for proper framing
+        const yardsToDeg = 0.000009; // approximate degrees per yard
+        const halfSpanLat = (yards * yardsToDeg * 0.8);
+        const halfSpanLng = (yards * yardsToDeg * 0.6);
+        const bbox = [
+          centerLng - halfSpanLng, centerLat - halfSpanLat,
+          centerLng + halfSpanLng, centerLat + halfSpanLat
+        ].join(',');
+        url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=${imgW},${imgH}&imageSR=4326&format=jpg&f=image`;
+      }
+
+      if (url !== lastSatelliteUrl) {
+        lastSatelliteUrl = url;
+        imgEl.src = url;
+        imgEl.style.display = '';
+        imgEl.onerror = () => { imgEl.style.display = 'none'; };
       }
     }
 
@@ -4334,23 +4447,23 @@
         { name: 'St. George\'s Golf & Country Club', lat: 43.6747, lng: -79.5306, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Rosedale Golf Club', lat: 43.6920, lng: -79.3750, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Toronto Golf Club', lat: 43.5930, lng: -79.5540, type: 'course', isPrivate: true, holes: '18' },
-        { name: 'Lambton Golf & Country Club', lat: 43.6680, lng: -79.4870, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Lambton Golf & Country Club', lat: 43.6680, lng: -79.4870, type: 'course', isPrivate: true, holes: '27', courses: [{name:'Championship',holes:18,lat:43.6680,lng:-79.4870},{name:'Executive Nine',holes:9,lat:43.6690,lng:-79.4855}] },
         { name: 'Scarboro Golf & Country Club', lat: 43.7220, lng: -79.2550, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Islington Golf Club', lat: 43.6370, lng: -79.5250, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Weston Golf & Country Club', lat: 43.7050, lng: -79.5150, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Donalda Club', lat: 43.7350, lng: -79.3350, type: 'course', isPrivate: true, holes: '18' },
-        { name: 'Oakdale Golf & Country Club', lat: 43.7330, lng: -79.4950, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Oakdale Golf & Country Club', lat: 43.7330, lng: -79.4950, type: 'course', isPrivate: true, holes: '27', courses: [{name:'South',holes:18,lat:43.7330,lng:-79.4950},{name:'North Nine',holes:9,lat:43.7345,lng:-79.4935}] },
         { name: 'Markland Wood Golf Club', lat: 43.6280, lng: -79.5650, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Toronto Hunt Club', lat: 43.6750, lng: -79.2430, type: 'course', isPrivate: true, holes: '9' },
 
         // === MISSISSAUGA (4) ===
         { name: 'Lakeview Golf Course', lat: 43.5880, lng: -79.5560, type: 'course', isPrivate: false, holes: '18' },
-        { name: 'BraeBen Golf Course', lat: 43.5680, lng: -79.6530, type: 'course', isPrivate: false, holes: '27' },
+        { name: 'BraeBen Golf Course', lat: 43.5680, lng: -79.6530, type: 'course', isPrivate: false, holes: '27', courses: [{name:'Championship',holes:18,lat:43.5680,lng:-79.6530},{name:'Academy Nine',holes:9,lat:43.5695,lng:-79.6515}] },
         { name: 'Credit Valley Golf & Country Club', lat: 43.5650, lng: -79.6850, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Mississaugua Golf & Country Club', lat: 43.5730, lng: -79.6200, type: 'course', isPrivate: true, holes: '18' },
 
         // === BRAMPTON (5) ===
-        { name: 'Lionhead Golf Club', lat: 43.7100, lng: -79.7700, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Lionhead Golf Club', lat: 43.7100, lng: -79.7700, type: 'course', isPrivate: false, holes: '36', courses: [{name:'Masters',holes:18,lat:43.7100,lng:-79.7700},{name:'Legends',holes:18,lat:43.7115,lng:-79.7680}] },
         { name: 'Streetsville Glen Golf Club', lat: 43.7050, lng: -79.7550, type: 'course', isPrivate: false, holes: '18' },
         { name: 'Peel Village Golf Course', lat: 43.7060, lng: -79.7340, type: 'course', isPrivate: false, holes: '9' },
         { name: 'Turnberry Golf Club', lat: 43.7530, lng: -79.7970, type: 'course', isPrivate: false, holes: '18' },
@@ -4360,29 +4473,29 @@
         { name: 'Glen Abbey Golf Course', lat: 43.4514, lng: -79.7083, type: 'course', isPrivate: false, holes: '18' },
 
         // === BURLINGTON (5) ===
-        { name: 'Hidden Lake Golf Club', lat: 43.3730, lng: -79.8250, type: 'course', isPrivate: true, holes: '36' },
+        { name: 'Hidden Lake Golf Club', lat: 43.3730, lng: -79.8250, type: 'course', isPrivate: true, holes: '36', courses: [{name:'Lake',holes:18,lat:43.3730,lng:-79.8250},{name:'Ridge',holes:18,lat:43.3745,lng:-79.8230}] },
         { name: 'Indian Wells Golf Club', lat: 43.3820, lng: -79.8420, type: 'course', isPrivate: false, holes: '18' },
         { name: 'Crosswinds Golf & Country Club', lat: 43.3900, lng: -79.8670, type: 'course', isPrivate: false, holes: '18' },
         { name: 'Tyandaga Golf Course', lat: 43.3530, lng: -79.8300, type: 'course', isPrivate: false, holes: '18' },
         { name: 'Burlington Golf & Country Club', lat: 43.3270, lng: -79.7880, type: 'course', isPrivate: true, holes: '18' },
 
         // === HAMILTON / ANCASTER / DUNDAS (2) ===
-        { name: 'Hamilton Golf & Country Club', lat: 43.2200, lng: -79.9950, type: 'course', isPrivate: true, holes: '27' },
-        { name: 'Dundas Valley Golf & Curling Club', lat: 43.2700, lng: -79.9700, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Hamilton Golf & Country Club', lat: 43.2200, lng: -79.9950, type: 'course', isPrivate: true, holes: '27', courses: [{name:'West',holes:18,lat:43.2200,lng:-79.9950},{name:'South Nine',holes:9,lat:43.2215,lng:-79.9935}] },
+        { name: 'Dundas Valley Golf & Curling Club', lat: 43.2700, lng: -79.9700, type: 'course', isPrivate: true, holes: '27', courses: [{name:'Championship',holes:18,lat:43.2700,lng:-79.9700},{name:'Valley Nine',holes:9,lat:43.2715,lng:-79.9685}] },
 
         // === MILTON / GEORGETOWN / HALTON HILLS (8) ===
-        { name: 'RattleSnake Point Golf Club', lat: 43.4700, lng: -79.8900, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'RattleSnake Point Golf Club', lat: 43.4700, lng: -79.8900, type: 'course', isPrivate: true, holes: '27', courses: [{name:'Copperhead',holes:18,lat:43.4700,lng:-79.8900},{name:'Sidewinder',holes:9,lat:43.4715,lng:-79.8880}] },
         { name: 'Piper\'s Heath Golf Club', lat: 43.4870, lng: -79.8380, type: 'course', isPrivate: false, holes: '18' },
-        { name: 'Granite Ridge Golf Club', lat: 43.4620, lng: -79.8670, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Granite Ridge Golf Club', lat: 43.4620, lng: -79.8670, type: 'course', isPrivate: false, holes: '36', courses: [{name:'Ridge',holes:18,lat:43.4620,lng:-79.8670},{name:'Valley',holes:18,lat:43.4635,lng:-79.8650}] },
         { name: 'Wyldewood Golf & Country Club', lat: 43.4900, lng: -79.8280, type: 'course', isPrivate: false, holes: '18' },
         { name: 'Royal Ontario Golf Club', lat: 43.5080, lng: -79.8500, type: 'course', isPrivate: false, holes: '18' },
         { name: 'Georgetown Golf Club', lat: 43.6500, lng: -79.9300, type: 'course', isPrivate: true, holes: '18' },
-        { name: 'Glencairn Golf Club', lat: 43.5500, lng: -79.9200, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Glencairn Golf Club', lat: 43.5500, lng: -79.9200, type: 'course', isPrivate: true, holes: '27', courses: [{name:'Championship',holes:18,lat:43.5500,lng:-79.9200},{name:'Heritage Nine',holes:9,lat:43.5515,lng:-79.9185}] },
         { name: 'The Club at North Halton', lat: 43.6480, lng: -79.9250, type: 'course', isPrivate: true, holes: '18' },
 
         // === CALEDON (3) ===
-        { name: 'TPC Toronto at Osprey Valley', lat: 43.8450, lng: -79.9650, type: 'course', isPrivate: false, holes: '54' },
-        { name: 'Devil\'s Pulpit Golf Association', lat: 43.8400, lng: -79.9600, type: 'course', isPrivate: true, holes: '36' },
+        { name: 'TPC Toronto at Osprey Valley', lat: 43.8450, lng: -79.9650, type: 'course', isPrivate: false, holes: '54', courses: [{name:'Heathlands',holes:18,lat:43.8450,lng:-79.9650},{name:'Hoot',holes:18,lat:43.8465,lng:-79.9630},{name:'Toot',holes:18,lat:43.8435,lng:-79.9670}] },
+        { name: 'Devil\'s Pulpit Golf Association', lat: 43.8400, lng: -79.9600, type: 'course', isPrivate: true, holes: '36', courses: [{name:'Devil\'s Pulpit',holes:18,lat:43.8400,lng:-79.9600},{name:'Devil\'s Paintbrush',holes:18,lat:43.8415,lng:-79.9580}] },
         { name: 'Caledon Woods Golf Club', lat: 43.8350, lng: -79.7550, type: 'course', isPrivate: true, holes: '18' },
 
         // === VAUGHAN / KLEINBURG / WOODBRIDGE (3) ===
@@ -4391,8 +4504,8 @@
         { name: 'Copper Creek Golf Club', lat: 43.8250, lng: -79.5870, type: 'course', isPrivate: false, holes: '18' },
 
         // === MARKHAM (3) ===
-        { name: 'Angus Glen Golf Club', lat: 43.8725, lng: -79.3150, type: 'course', isPrivate: false, holes: '36' },
-        { name: 'Remington Parkview Golf & Country Club', lat: 43.8170, lng: -79.2450, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Angus Glen Golf Club', lat: 43.8725, lng: -79.3150, type: 'course', isPrivate: false, holes: '36', courses: [{name:'North',holes:18,lat:43.8725,lng:-79.3150},{name:'South',holes:18,lat:43.8710,lng:-79.3170}] },
+        { name: 'Remington Parkview Golf & Country Club', lat: 43.8170, lng: -79.2450, type: 'course', isPrivate: false, holes: '36', courses: [{name:'Upper',holes:18,lat:43.8170,lng:-79.2450},{name:'Valley',holes:18,lat:43.8155,lng:-79.2470}] },
         { name: 'Bushwood Golf Club', lat: 43.8750, lng: -79.2150, type: 'course', isPrivate: false, holes: '18' },
 
         // === RICHMOND HILL (3) ===
@@ -4401,14 +4514,14 @@
         { name: 'DiamondBack Golf Club', lat: 43.9150, lng: -79.3700, type: 'course', isPrivate: true, holes: '18' },
 
         // === THORNHILL (3) ===
-        { name: 'Thornhill Golf & Country Club', lat: 43.8150, lng: -79.4430, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Thornhill Golf & Country Club', lat: 43.8150, lng: -79.4430, type: 'course', isPrivate: true, holes: '27', courses: [{name:'Championship',holes:18,lat:43.8150,lng:-79.4430},{name:'Academy Nine',holes:9,lat:43.8165,lng:-79.4415}] },
         { name: 'Ladies\' Golf Club of Toronto', lat: 43.8080, lng: -79.4420, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Maple Downs Golf & Country Club', lat: 43.8550, lng: -79.5000, type: 'course', isPrivate: true, holes: '18' },
 
         // === KING CITY / KETTLEBY (3) ===
         { name: 'King Valley Golf Club', lat: 43.9350, lng: -79.5350, type: 'course', isPrivate: true, holes: '18' },
         { name: 'King\'s Riding Golf Club', lat: 43.9280, lng: -79.5070, type: 'course', isPrivate: true, holes: '18' },
-        { name: 'Carrying Place Golf & Country Club', lat: 43.9750, lng: -79.5280, type: 'course', isPrivate: false, holes: '27' },
+        { name: 'Carrying Place Golf & Country Club', lat: 43.9750, lng: -79.5280, type: 'course', isPrivate: false, holes: '27', courses: [{name:'Pine',holes:9,lat:43.9750,lng:-79.5280},{name:'Lake',holes:9,lat:43.9765,lng:-79.5265},{name:'Valley',holes:9,lat:43.9735,lng:-79.5295}] },
 
         // === AURORA / NEWMARKET (4) ===
         { name: 'Magna Golf Club', lat: 43.9700, lng: -79.3700, type: 'course', isPrivate: true, holes: '18' },
@@ -4417,19 +4530,19 @@
         { name: 'Westview Golf Club', lat: 43.9600, lng: -79.4750, type: 'course', isPrivate: true, holes: '18' },
 
         // === EAST GWILLIMBURY / SHARON (2) ===
-        { name: 'Pheasant Run Golf Club', lat: 44.0700, lng: -79.3600, type: 'course', isPrivate: false, holes: '27' },
+        { name: 'Pheasant Run Golf Club', lat: 44.0700, lng: -79.3600, type: 'course', isPrivate: false, holes: '27', courses: [{name:'Highland',holes:18,lat:44.0700,lng:-79.3600},{name:'Midland Nine',holes:9,lat:44.0715,lng:-79.3585}] },
         { name: 'Silver Lakes Golf & Country Club', lat: 44.0800, lng: -79.4300, type: 'course', isPrivate: false, holes: '18' },
 
         // === STOUFFVILLE / GORMLEY (5) ===
-        { name: 'Station Creek Golf Club', lat: 43.9200, lng: -79.3550, type: 'course', isPrivate: true, holes: '36' },
-        { name: 'Emerald Hills Golf Club', lat: 43.9350, lng: -79.2800, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Station Creek Golf Club', lat: 43.9200, lng: -79.3550, type: 'course', isPrivate: true, holes: '36', courses: [{name:'North',holes:18,lat:43.9200,lng:-79.3550},{name:'South',holes:18,lat:43.9185,lng:-79.3570}] },
+        { name: 'Emerald Hills Golf Club', lat: 43.9350, lng: -79.2800, type: 'course', isPrivate: true, holes: '27', courses: [{name:'Championship',holes:18,lat:43.9350,lng:-79.2800},{name:'Executive Nine',holes:9,lat:43.9365,lng:-79.2785}] },
         { name: 'Rolling Hills Golf Club', lat: 43.9250, lng: -79.2900, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Sleepy Hollow Country Club', lat: 43.9300, lng: -79.2700, type: 'course', isPrivate: true, holes: '18' },
         { name: 'Meadowbrook Golf & Country Club', lat: 43.9100, lng: -79.3300, type: 'course', isPrivate: true, holes: '18' },
 
         // === PICKERING / AJAX (3) ===
         { name: 'Cherry Downs Golf Club', lat: 43.8700, lng: -79.1300, type: 'course', isPrivate: true, holes: '18' },
-        { name: 'Deer Creek Golf & Banquet Facility', lat: 43.8850, lng: -79.0550, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Deer Creek Golf & Banquet Facility', lat: 43.8850, lng: -79.0550, type: 'course', isPrivate: false, holes: '36', courses: [{name:'North',holes:18,lat:43.8850,lng:-79.0550},{name:'South',holes:18,lat:43.8835,lng:-79.0570}] },
         { name: 'Pickering Glen Golf Club', lat: 43.8700, lng: -79.0600, type: 'course', isPrivate: false, holes: '9' },
 
         // === WHITBY / OSHAWA / ASHBURN (2) ===
