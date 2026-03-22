@@ -832,6 +832,85 @@
       font-weight: 700;
       z-index: 300;
     }
+
+    /* ---- Leaderboard Screen ---- */
+    .leaderboard-screen { padding: 0; }
+    .leaderboard-tabs { display: flex; border-bottom: 1px solid rgba(0,0,0,0.08); }
+    .leaderboard-tab {
+      flex: 1; padding: 12px 0; text-align: center; font-size: 13px; font-weight: 600;
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      border-bottom: 2px solid transparent; transition: all 0.2s;
+    }
+    .leaderboard-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .leaderboard-content { flex: 1; overflow-y: auto; }
+
+    /* Leaderboard table */
+    .lb-table { width: 100%; }
+    .lb-row {
+      display: flex; align-items: center; padding: 12px 16px; gap: 10px;
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .lb-row.header { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .lb-row.me { background: rgba(46,173,86,0.06); }
+    .lb-rank { width: 28px; font-weight: 700; font-size: 14px; text-align: center; flex-shrink: 0; }
+    .lb-rank-medal { font-size: 16px; }
+    .lb-player { flex: 1; min-width: 0; }
+    .lb-player-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-player-record { font-size: 11px; color: var(--text-muted); }
+    .lb-stat { width: 36px; text-align: center; font-size: 13px; flex-shrink: 0; }
+    .lb-stat.pts { font-weight: 700; color: var(--primary); }
+
+    /* Match history */
+    .history-list { padding: 0 0 8px; }
+    .history-card {
+      margin: 8px 12px; padding: 14px 16px; background: var(--bg-card);
+      border-radius: var(--radius); border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .history-opponent { font-weight: 600; font-size: 14px; }
+    .history-result {
+      font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 10px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .history-result.win { background: rgba(46,173,86,0.12); color: #249847; }
+    .history-result.loss { background: rgba(239,68,68,0.12); color: #dc2626; }
+    .history-result.draw { background: rgba(234,179,8,0.12); color: #b45309; }
+    .history-result.pending { background: rgba(107,114,128,0.12); color: #6b7280; }
+    .history-details { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .history-scores { display: flex; gap: 16px; margin-top: 6px; font-size: 13px; }
+    .history-scores .score-col { text-align: center; }
+    .history-scores .score-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+    .history-scores .score-val { font-weight: 700; font-size: 16px; }
+
+    /* Score submission modal */
+    .score-modal { display: none; }
+    .score-modal.active { display: flex; }
+    .score-form {
+      background: var(--bg-card); border-radius: 20px; padding: 24px;
+      max-width: 400px; width: 100%; max-height: 85vh; overflow-y: auto;
+      animation: modalIn 0.3s ease;
+    }
+    .score-form h2 { font-size: 18px; margin-bottom: 16px; }
+    .score-form .input-group { margin-bottom: 14px; }
+    .score-row { display: flex; gap: 12px; }
+    .score-row .input-group { flex: 1; }
+    .score-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .score-actions .btn { flex: 1; }
+
+    /* Pending verification banner */
+    .pending-banner {
+      margin: 8px 12px; padding: 12px 16px; background: rgba(234,179,8,0.1);
+      border: 1px solid rgba(234,179,8,0.2); border-radius: var(--radius);
+      font-size: 13px; display: flex; align-items: center; gap: 10px;
+    }
+    .pending-banner .pending-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+    .pending-banner .btn-sm {
+      padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px;
+      border: none; cursor: pointer;
+    }
+    .pending-banner .btn-accept { background: var(--primary); color: white; }
+    .pending-banner .btn-reject { background: rgba(0,0,0,0.06); color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -998,7 +1077,11 @@
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
         <div class="avatar" id="chat-avatar"></div>
-        <span id="chat-name" style="font-weight:600;"></span>
+        <span id="chat-name" style="font-weight:600;flex:1;"></span>
+        <button class="btn-ghost" onclick="openScoreModal()" title="Submit Score" style="color:var(--primary);font-size:12px;font-weight:600;white-space:nowrap;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:2px;"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+          Score
+        </button>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-bar">
@@ -1017,7 +1100,7 @@
         <p class="profile-meta" id="profile-meta"></p>
         <div class="profile-stats">
           <div class="profile-stat"><div class="stat-num" id="stat-matches">0</div><div class="stat-label">Matches</div></div>
-          <div class="profile-stat"><div class="stat-num" id="stat-played">0</div><div class="stat-label">Played</div></div>
+          <div class="profile-stat"><div class="stat-num" id="stat-played" style="font-size:14px;">0</div><div class="stat-label">Record</div></div>
           <div class="profile-stat"><div class="stat-num" id="stat-rounds">0</div><div class="stat-label">Rounds</div></div>
         </div>
       </div>
@@ -1054,6 +1137,79 @@
       </div>
     </div>
 
+    <!-- LEADERBOARD SCREEN -->
+    <div id="leaderboard-screen" class="screen leaderboard-screen">
+      <div class="header">
+        <h1>Leaderboard</h1>
+      </div>
+      <div class="leaderboard-tabs">
+        <button class="leaderboard-tab active" data-lb="standings" onclick="switchLeaderboardTab('standings')">Standings</button>
+        <button class="leaderboard-tab" data-lb="history" onclick="switchLeaderboardTab('history')">Match History</button>
+      </div>
+      <div class="leaderboard-content" id="leaderboard-content"></div>
+    </div>
+
+    <!-- SCORE SUBMISSION MODAL -->
+    <div class="modal-overlay score-modal" id="score-modal">
+      <div class="score-form">
+        <h2>Submit Match Score</h2>
+        <div class="input-group">
+          <label>Opponent</label>
+          <input id="score-opponent" class="input" readonly>
+        </div>
+        <div class="input-group">
+          <label>Course Played</label>
+          <select id="score-course" class="input">
+            <option value="">Select a course...</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Date Played</label>
+          <input id="score-date" class="input" type="date">
+        </div>
+        <div class="input-group">
+          <label>Tees</label>
+          <select id="score-tees" class="input">
+            <option value="white">White</option>
+            <option value="blue">Blue</option>
+            <option value="red">Red</option>
+            <option value="gold">Gold</option>
+            <option value="black">Black</option>
+          </select>
+        </div>
+        <div class="score-row">
+          <div class="input-group">
+            <label>Your Score</label>
+            <input id="score-mine" class="input" type="number" placeholder="e.g. 85" min="40" max="180">
+          </div>
+          <div class="input-group">
+            <label>Opponent's Score</label>
+            <input id="score-theirs" class="input" type="number" placeholder="e.g. 92" min="40" max="180">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Strokes Given</label>
+          <select id="score-strokes" class="input">
+            <option value="0">No strokes given</option>
+            <option value="i-gave-1">I gave 1 stroke</option>
+            <option value="i-gave-2">I gave 2 strokes</option>
+            <option value="i-gave-3">I gave 3 strokes</option>
+            <option value="i-gave-5">I gave 5 strokes</option>
+            <option value="i-gave-10">I gave 10 strokes</option>
+            <option value="i-got-1">I received 1 stroke</option>
+            <option value="i-got-2">I received 2 strokes</option>
+            <option value="i-got-3">I received 3 strokes</option>
+            <option value="i-got-5">I received 5 strokes</option>
+            <option value="i-got-10">I received 10 strokes</option>
+          </select>
+        </div>
+        <div class="score-actions">
+          <button class="btn btn-outline" onclick="closeScoreModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="submitScore()">Submit</button>
+        </div>
+      </div>
+    </div>
+
     <!-- BOTTOM NAV -->
     <nav class="bottom-nav" id="bottom-nav" style="display:none;">
       <button class="nav-btn active" data-screen="discover" onclick="navigateTo('discover')">
@@ -1064,6 +1220,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         Matches
         <span class="nav-badge" id="matches-badge"></span>
+      </button>
+      <button class="nav-btn" data-screen="leaderboard" onclick="navigateTo('leaderboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21V11M16 21V7M12 21V3"/><path d="M6 21h12"/></svg>
+        Board
       </button>
       <button class="nav-btn" data-screen="venues" onclick="navigateTo('venues')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -1307,7 +1467,9 @@
         handicapMax: 54,
         maxDistance: 50,
         maxBudget: 300
-      }
+      },
+      matchResults: [],  // { id, date, course, tees, myScore, theirScore, opponentId, strokes, result, verified }
+      pendingScores: []  // scores awaiting opponent verification
     };
 
     // ========== DEMO DATA ==========
@@ -1432,7 +1594,7 @@
       if (state.supabase) {
         await state.supabase.auth.signOut();
       }
-      state = { mode: null, user: null, authMode: 'signin', profiles: [], filteredProfiles: [], cardIndex: 0, matches: [], conversations: {}, currentChat: null, supabase: state.supabase, filters: { gender: 'all', handicapMin: -10, handicapMax: 54, maxDistance: 50, maxBudget: 300 } };
+      state = { mode: null, user: null, authMode: 'signin', profiles: [], filteredProfiles: [], cardIndex: 0, matches: [], conversations: {}, currentChat: null, supabase: state.supabase, filters: { gender: 'all', handicapMin: -10, handicapMax: 54, maxDistance: 50, maxBudget: 300 }, matchResults: [], pendingScores: [] };
       const badge = document.querySelector('.demo-badge');
       if (badge) badge.remove();
       $('bottom-nav').style.display = 'none';
@@ -1542,6 +1704,10 @@
         state.conversations[profile.id] = state.mode === 'demo' ? generateDemoMessages(profile) : [];
         notifyNewMatch(profile);
         setTimeout(() => showMatchModal(profile), 400);
+        // In demo mode, generate sample match history once we have 3+ matches
+        if (state.mode === 'demo' && state.matches.length === 3 && state.matchResults.length === 0) {
+          generateDemoHistory();
+        }
       }
       if (state.mode === 'live') {
         await state.supabase.from('swipes').insert({ swiper_id: state.user.id, swiped_id: profile.id, direction: 'like' });
@@ -1904,6 +2070,8 @@
       } else if (screen === 'matches') {
         clearMatchesBadge();
         renderMatchesList();
+      } else if (screen === 'leaderboard') {
+        renderLeaderboard();
       } else if (screen === 'venues') {
         loadVenues();
       } else if (screen === 'profile') {
@@ -2158,8 +2326,12 @@
       const loc = state.user.locationMode === 'gps' ? 'GPS Location' : getLocationDisplay(state.user);
       $('profile-meta').textContent = [state.user.age, loc, hcp, budget].filter(Boolean).join(' · ');
       $('stat-matches').textContent = state.matches.length;
-      $('stat-played').textContent = '0';
-      $('stat-rounds').textContent = '0';
+      const verified = state.matchResults.filter(r => r.verified);
+      const wins = verified.filter(r => r.result === 'win').length;
+      const losses = verified.filter(r => r.result === 'loss').length;
+      const draws = verified.filter(r => r.result === 'draw').length;
+      $('stat-played').textContent = verified.length > 0 ? `${wins}W ${losses}L ${draws}D` : '0';
+      $('stat-rounds').textContent = verified.length;
     }
 
     function editProfile() {
@@ -2232,6 +2404,358 @@
           time: msg.created_at
         }));
       }
+    }
+
+    // ========== LEADERBOARD & SCORE TRACKING ==========
+    let activeLeaderboardTab = 'standings';
+
+    function switchLeaderboardTab(tab) {
+      activeLeaderboardTab = tab;
+      document.querySelectorAll('.leaderboard-tab').forEach(t => t.classList.toggle('active', t.dataset.lb === tab));
+      renderLeaderboard();
+    }
+
+    function renderLeaderboard() {
+      const container = $('leaderboard-content');
+      if (activeLeaderboardTab === 'standings') {
+        renderStandings(container);
+      } else {
+        renderHistory(container);
+      }
+    }
+
+    function renderStandings(container) {
+      // Build standings from all verified results
+      const standings = {};
+      // Include current user
+      if (state.user) {
+        standings[state.user.id || 'me'] = { name: state.user.name, wins: 0, losses: 0, draws: 0, points: 0, isMe: true };
+      }
+      // Include all matched players
+      state.matches.forEach(m => {
+        if (!standings[m.id]) standings[m.id] = { name: m.name, wins: 0, losses: 0, draws: 0, points: 0 };
+      });
+
+      state.matchResults.filter(r => r.verified).forEach(r => {
+        const myId = state.user.id || 'me';
+        if (!standings[myId]) standings[myId] = { name: state.user.name, wins: 0, losses: 0, draws: 0, points: 0, isMe: true };
+        if (!standings[r.opponentId]) {
+          const opp = state.matches.find(m => m.id === r.opponentId);
+          standings[r.opponentId] = { name: opp ? opp.name : 'Unknown', wins: 0, losses: 0, draws: 0, points: 0 };
+        }
+
+        if (r.result === 'win') {
+          standings[myId].wins++;
+          standings[myId].points += 2;
+          standings[r.opponentId].losses++;
+        } else if (r.result === 'loss') {
+          standings[myId].losses++;
+          standings[r.opponentId].wins++;
+          standings[r.opponentId].points += 2;
+        } else {
+          standings[myId].draws++;
+          standings[myId].points += 1;
+          standings[r.opponentId].draws++;
+          standings[r.opponentId].points += 1;
+        }
+      });
+
+      const sorted = Object.entries(standings)
+        .map(([id, s]) => ({ id, ...s }))
+        .sort((a, b) => b.points - a.points || (b.wins - b.losses) - (a.wins - a.losses));
+
+      if (sorted.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#127942;</div><h3>No standings yet</h3><p>Submit scores after playing a round with your matches!</p></div>';
+        return;
+      }
+
+      let html = `<div class="lb-table">
+        <div class="lb-row header">
+          <div class="lb-rank">#</div>
+          <div class="lb-player">Player</div>
+          <div class="lb-stat">W</div>
+          <div class="lb-stat">L</div>
+          <div class="lb-stat">D</div>
+          <div class="lb-stat pts">PTS</div>
+        </div>`;
+
+      sorted.forEach((p, i) => {
+        const rank = i + 1;
+        const medal = rank === 1 ? '<span class="lb-rank-medal">&#129351;</span>' : rank === 2 ? '<span class="lb-rank-medal">&#129352;</span>' : rank === 3 ? '<span class="lb-rank-medal">&#129353;</span>' : rank;
+        const total = p.wins + p.losses + p.draws;
+        html += `<div class="lb-row ${p.isMe ? 'me' : ''}">
+          <div class="lb-rank">${medal}</div>
+          <div class="lb-player">
+            <div class="lb-player-name">${p.name}${p.isMe ? ' (You)' : ''}</div>
+            <div class="lb-player-record">${total} match${total !== 1 ? 'es' : ''} played</div>
+          </div>
+          <div class="lb-stat">${p.wins}</div>
+          <div class="lb-stat">${p.losses}</div>
+          <div class="lb-stat">${p.draws}</div>
+          <div class="lb-stat pts">${p.points}</div>
+        </div>`;
+      });
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function renderHistory(container) {
+      // Show pending scores that need verification first
+      let html = '';
+
+      // Pending verification banners
+      state.pendingScores.forEach((p, i) => {
+        const opp = state.matches.find(m => m.id === p.opponentId);
+        const oppName = opp ? opp.name : 'Unknown';
+        html += `<div class="pending-banner">
+          <div>
+            <strong>${oppName}</strong> submitted a score: ${p.theirScore} vs ${p.myScore} at ${p.course} (${formatDate(p.date)})
+          </div>
+          <div class="pending-actions">
+            <button class="btn-sm btn-accept" onclick="acceptScore(${i})">Accept</button>
+            <button class="btn-sm btn-reject" onclick="rejectScore(${i})">Reject</button>
+          </div>
+        </div>`;
+      });
+
+      // Verified match history
+      const results = [...state.matchResults].reverse();
+      if (results.length === 0 && state.pendingScores.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128203;</div><h3>No match history</h3><p>Play a round with your matches and submit the score!</p></div>';
+        return;
+      }
+
+      html += '<div class="history-list">';
+      results.forEach(r => {
+        const opp = state.matches.find(m => m.id === r.opponentId);
+        const oppName = opp ? opp.name : 'Unknown';
+        const resultClass = r.verified ? r.result : 'pending';
+        const resultLabel = r.verified ? (r.result === 'win' ? 'Win' : r.result === 'loss' ? 'Loss' : 'Draw') : 'Pending';
+        const strokesText = r.strokes && r.strokes !== '0' ? ` · Strokes: ${r.strokes}` : '';
+
+        html += `<div class="history-card">
+          <div class="history-header">
+            <span class="history-opponent">${oppName}</span>
+            <span class="history-result ${resultClass}">${resultLabel}</span>
+          </div>
+          <div class="history-details">${r.course} · ${formatDate(r.date)} · ${capitalize(r.tees)} tees${strokesText}</div>
+          <div class="history-scores">
+            <div class="score-col">
+              <div class="score-label">You</div>
+              <div class="score-val">${r.myScore}</div>
+            </div>
+            <div class="score-col">
+              <div class="score-label">${oppName.split(' ')[0]}</div>
+              <div class="score-val">${r.theirScore}</div>
+            </div>
+          </div>
+        </div>`;
+      });
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+    // Score submission
+    function openScoreModal() {
+      if (!state.currentChat) return;
+      const profile = state.matches.find(m => m.id === state.currentChat);
+      if (!profile) return;
+
+      $('score-opponent').value = profile.name;
+      $('score-date').value = new Date().toISOString().split('T')[0];
+      $('score-mine').value = '';
+      $('score-theirs').value = '';
+      $('score-strokes').value = '0';
+      $('score-tees').value = 'white';
+
+      // Populate course dropdown from demo venues
+      const coords = getUserCoords();
+      const courseSelect = $('score-course');
+      courseSelect.innerHTML = '<option value="">Select a course...</option>';
+      if (coords) {
+        const venues = getDemoVenues(coords, 100).filter(v => v.type === 'course');
+        venues.forEach(v => {
+          courseSelect.innerHTML += `<option value="${v.name}">${v.name} (${v.dist.toFixed(0)} km)</option>`;
+        });
+      }
+
+      $('score-modal').classList.add('active');
+    }
+
+    function closeScoreModal() {
+      $('score-modal').classList.remove('active');
+    }
+
+    function submitScore() {
+      const course = $('score-course').value;
+      const date = $('score-date').value;
+      const tees = $('score-tees').value;
+      const myScore = parseInt($('score-mine').value);
+      const theirScore = parseInt($('score-theirs').value);
+      const strokes = $('score-strokes').value;
+
+      if (!course) { showToast('Please select a course'); return; }
+      if (!date) { showToast('Please enter the date'); return; }
+      if (!myScore || myScore < 40) { showToast('Please enter a valid score'); return; }
+      if (!theirScore || theirScore < 40) { showToast("Please enter opponent's score"); return; }
+
+      // Determine result based on net scores
+      let netMine = myScore;
+      let netTheirs = theirScore;
+      if (strokes.startsWith('i-gave-')) {
+        netTheirs -= parseInt(strokes.split('-')[2]);
+      } else if (strokes.startsWith('i-got-')) {
+        netMine -= parseInt(strokes.split('-')[2]);
+      }
+
+      let result;
+      if (netMine < netTheirs) result = 'win';
+      else if (netMine > netTheirs) result = 'loss';
+      else result = 'draw';
+
+      const entry = {
+        id: 'r-' + Date.now(),
+        date, course, tees,
+        myScore, theirScore,
+        opponentId: state.currentChat,
+        strokes: formatStrokesLabel(strokes),
+        result,
+        verified: false
+      };
+
+      state.matchResults.push(entry);
+
+      // In demo mode, simulate opponent verification after a delay
+      if (state.mode === 'demo') {
+        setTimeout(() => {
+          entry.verified = true;
+          const opp = state.matches.find(m => m.id === entry.opponentId);
+          showToast(`${opp ? opp.name : 'Opponent'} confirmed the score!`);
+          updateProfileStats();
+        }, 2000 + Math.random() * 3000);
+      }
+
+      closeScoreModal();
+      showToast('Score submitted! Waiting for opponent to verify.');
+
+      // Send a chat message about the score
+      const profile = state.matches.find(m => m.id === state.currentChat);
+      const resultEmoji = result === 'win' ? '&#127942;' : result === 'draw' ? '&#129309;' : '&#128170;';
+      const autoMsg = { from: state.user.id || 'me', text: `Submitted score: ${myScore} vs ${theirScore} at ${course} (${formatDate(date)})`, time: new Date().toISOString() };
+      if (!state.conversations[state.currentChat]) state.conversations[state.currentChat] = [];
+      state.conversations[state.currentChat].push(autoMsg);
+      renderMessages();
+    }
+
+    function formatStrokesLabel(strokes) {
+      if (!strokes || strokes === '0') return '';
+      if (strokes.startsWith('i-gave-')) return 'Gave ' + strokes.split('-')[2] + ' strokes';
+      if (strokes.startsWith('i-got-')) return 'Received ' + strokes.split('-')[2] + ' strokes';
+      return '';
+    }
+
+    // Score verification
+    function acceptScore(index) {
+      if (index < 0 || index >= state.pendingScores.length) return;
+      const pending = state.pendingScores.splice(index, 1)[0];
+      // Create a verified result from the opponent's submission (flip perspective)
+      let result;
+      if (pending.myScore < pending.theirScore) result = 'win';
+      else if (pending.myScore > pending.theirScore) result = 'loss';
+      else result = 'draw';
+
+      state.matchResults.push({
+        id: 'r-' + Date.now(),
+        date: pending.date,
+        course: pending.course,
+        tees: pending.tees,
+        myScore: pending.myScore,
+        theirScore: pending.theirScore,
+        opponentId: pending.opponentId,
+        strokes: pending.strokes,
+        result,
+        verified: true
+      });
+      updateProfileStats();
+      showToast('Score accepted!');
+      renderLeaderboard();
+    }
+
+    function rejectScore(index) {
+      if (index < 0 || index >= state.pendingScores.length) return;
+      state.pendingScores.splice(index, 1);
+      showToast('Score rejected.');
+      renderLeaderboard();
+    }
+
+    function updateProfileStats() {
+      const verified = state.matchResults.filter(r => r.verified);
+      const wins = verified.filter(r => r.result === 'win').length;
+      const losses = verified.filter(r => r.result === 'loss').length;
+      const draws = verified.filter(r => r.result === 'draw').length;
+      $('stat-played').textContent = wins + 'W ' + losses + 'L ' + draws + 'D';
+      $('stat-rounds').textContent = verified.length;
+    }
+
+    // Generate demo match history
+    function generateDemoHistory() {
+      if (state.matches.length === 0) return;
+      const courses = ['Don Valley Golf Course', 'Angus Glen Golf Club', 'Humber Valley Golf Course', 'Lionhead Golf Club', 'Lakeview Golf Course'];
+      const teeOptions = ['white', 'blue', 'red', 'gold'];
+      const today = new Date();
+
+      // Generate 5 demo results
+      for (let i = 0; i < 5; i++) {
+        const opp = state.matches[Math.floor(Math.random() * state.matches.length)];
+        const daysAgo = Math.floor(Math.random() * 60) + 1;
+        const date = new Date(today);
+        date.setDate(date.getDate() - daysAgo);
+        const myScore = 72 + Math.floor(Math.random() * 30);
+        const theirScore = 72 + Math.floor(Math.random() * 30);
+
+        let result;
+        if (myScore < theirScore) result = 'win';
+        else if (myScore > theirScore) result = 'loss';
+        else result = 'draw';
+
+        state.matchResults.push({
+          id: 'demo-r-' + i,
+          date: date.toISOString().split('T')[0],
+          course: courses[Math.floor(Math.random() * courses.length)],
+          tees: teeOptions[Math.floor(Math.random() * teeOptions.length)],
+          myScore, theirScore,
+          opponentId: opp.id,
+          strokes: '',
+          result,
+          verified: true
+        });
+      }
+
+      // Generate 1 pending score from an opponent
+      if (state.matches.length >= 2) {
+        const pendingOpp = state.matches[state.matches.length - 1];
+        state.pendingScores.push({
+          opponentId: pendingOpp.id,
+          date: new Date().toISOString().split('T')[0],
+          course: 'Glen Abbey Golf Course',
+          tees: 'white',
+          myScore: 88,
+          theirScore: 82,
+          strokes: ''
+        });
+      }
+
+      updateProfileStats();
     }
 
     // ========== VENUES (COURSES & SIMULATORS) ==========
