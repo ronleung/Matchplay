@@ -179,22 +179,6 @@
       overflow: hidden;
     }
     .avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
-    .sport-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-    .sport-tag {
-      padding: 8px 16px;
-      border-radius: 20px;
-      background: var(--bg-input);
-      border: 1.5px solid transparent;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 13px;
-      transition: all 0.2s;
-    }
-    .sport-tag.selected {
-      border-color: var(--primary);
-      color: var(--primary-light);
-      background: rgba(99,102,241,0.15);
-    }
 
     /* ---- Discover / Cards ---- */
     .discover-screen { padding: 0; }
@@ -233,14 +217,6 @@
     .card-info { padding: 16px 20px; }
     .card-info h3 { font-size: 20px; margin-bottom: 4px; }
     .card-info .card-meta { color: var(--text-muted); font-size: 13px; margin-bottom: 10px; }
-    .card-info .card-sports { display: flex; gap: 6px; flex-wrap: wrap; }
-    .card-info .card-sports span {
-      font-size: 11px;
-      padding: 4px 10px;
-      background: rgba(99,102,241,0.15);
-      color: var(--primary-light);
-      border-radius: 12px;
-    }
     .card-actions {
       display: flex;
       justify-content: center;
@@ -705,7 +681,7 @@
     <!-- AUTH SCREEN -->
     <div id="auth-screen" class="screen auth-screen active">
       <div class="auth-logo">Match Play</div>
-      <p class="auth-subtitle">Find your perfect sports partner</p>
+      <p class="auth-subtitle">Find your perfect golf partner</p>
       <div class="auth-form">
         <div class="input-group">
           <label>Email</label>
@@ -746,8 +722,24 @@
         </select>
       </div>
       <div class="input-group">
-        <label>Location</label>
-        <input id="setup-location" class="input" placeholder="City, State">
+        <label>Country</label>
+        <select id="setup-country" class="input" onchange="onCountryChange()">
+          <option value="">Select country</option>
+          <option value="CA">Canada</option>
+          <option value="US">United States</option>
+        </select>
+      </div>
+      <div class="input-group" id="region-group" style="display:none;">
+        <label id="region-label">Province / State</label>
+        <select id="setup-region" class="input" onchange="onRegionChange()">
+          <option value="">Select...</option>
+        </select>
+      </div>
+      <div class="input-group" id="city-group" style="display:none;">
+        <label>City</label>
+        <select id="setup-city" class="input">
+          <option value="">Select city</option>
+        </select>
       </div>
       <div class="input-group">
         <label>Handicap Index <span style="font-weight:400;color:var(--text-muted);">(optional, -10 to +54)</span></label>
@@ -765,10 +757,6 @@
           <option value="200">$150 – $200</option>
           <option value="300">$200+ (resort / premium)</option>
         </select>
-      </div>
-      <div class="input-group">
-        <label>Select your sports</label>
-        <div class="sport-tags" id="sport-tags"></div>
       </div>
       <div class="input-group">
         <label>Bio</label>
@@ -790,7 +778,7 @@
       <div class="active-filters" id="active-filters"></div>
       <div class="card-stack" id="card-stack">
         <div class="empty-state" id="empty-state" style="display:none;">
-          <div class="empty-icon">&#127934;</div>
+          <div class="empty-icon">&#9971;</div>
           <h3>No more players</h3>
           <p>Check back later for new matches!</p>
         </div>
@@ -834,7 +822,7 @@
         <div class="profile-stats">
           <div class="profile-stat"><div class="stat-num" id="stat-matches">0</div><div class="stat-label">Matches</div></div>
           <div class="profile-stat"><div class="stat-num" id="stat-played">0</div><div class="stat-label">Played</div></div>
-          <div class="profile-stat"><div class="stat-num" id="stat-sports">0</div><div class="stat-label">Sports</div></div>
+          <div class="profile-stat"><div class="stat-num" id="stat-rounds">0</div><div class="stat-label">Rounds</div></div>
         </div>
       </div>
       <div class="settings-section">
@@ -897,7 +885,7 @@
         </div>
       </div>
       <div class="filter-section">
-        <label>Max Distance <span class="range-display" id="distance-display">50 mi</span></label>
+        <label>Max Distance <span class="range-display" id="distance-display">50 km</span></label>
         <input type="range" id="filter-distance" min="1" max="100" value="50" oninput="updateDistanceDisplay()">
       </div>
       <div class="filter-actions">
@@ -930,14 +918,85 @@
     const SUPABASE_URL = '';
     const SUPABASE_KEY = '';
 
-    const SPORTS = [
-      'Tennis', 'Pickleball', 'Badminton', 'Squash',
-      'Table Tennis', 'Golf', 'Basketball', 'Soccer',
-      'Volleyball', 'Running', 'Cycling', 'Swimming',
-      'Rock Climbing', 'Boxing', 'Yoga', 'CrossFit'
-    ];
+    const AVATARS = ['&#127948;','&#9971;','&#127948;','&#9971;','&#127948;','&#9971;','&#127948;','&#9971;'];
 
-    const AVATARS = ['&#127939;','&#127947;','&#127948;','&#127946;','&#9975;','&#127938;','&#127934;','&#128692;'];
+    // ========== LOCATION DATA ==========
+    const LOCATION_DATA = {
+      CA: {
+        label: 'Province / Territory',
+        regions: {
+          'ON': { name: 'Ontario', cities: ['Toronto','Ottawa','Mississauga','Brampton','Hamilton','London','Markham','Vaughan','Kitchener','Windsor','Richmond Hill','Oakville','Burlington','Oshawa','Barrie','St. Catharines','Cambridge','Kingston','Guelph','Thunder Bay','Waterloo','Brantford','Pickering','Niagara Falls','Peterborough','Sault Ste. Marie','Sarnia','Welland','Belleville','North Bay','Cornwall','Woodstock','Stratford','Orillia','Cobourg','Collingwood','Muskoka','Orangeville','Milton','Ajax'] },
+          'BC': { name: 'British Columbia', cities: ['Vancouver','Victoria','Burnaby','Surrey','Richmond','Kelowna','Kamloops','Nanaimo','Prince George','Abbotsford','Chilliwack','Langley','Coquitlam','Whistler'] },
+          'AB': { name: 'Alberta', cities: ['Calgary','Edmonton','Red Deer','Lethbridge','Medicine Hat','St. Albert','Spruce Grove','Banff','Canmore','Airdrie'] },
+          'QC': { name: 'Quebec', cities: ['Montreal','Quebec City','Laval','Gatineau','Longueuil','Sherbrooke','Trois-Rivieres','Saguenay','Levis','Terrebonne','Mont-Tremblant'] },
+          'MB': { name: 'Manitoba', cities: ['Winnipeg','Brandon','Steinbach','Thompson','Portage la Prairie'] },
+          'SK': { name: 'Saskatchewan', cities: ['Saskatoon','Regina','Prince Albert','Moose Jaw','Swift Current'] },
+          'NS': { name: 'Nova Scotia', cities: ['Halifax','Dartmouth','Sydney','Truro','New Glasgow'] },
+          'NB': { name: 'New Brunswick', cities: ['Moncton','Saint John','Fredericton','Dieppe','Miramichi'] },
+          'NL': { name: 'Newfoundland and Labrador', cities: ['St. John\'s','Mount Pearl','Corner Brook','Conception Bay South','Paradise'] },
+          'PE': { name: 'Prince Edward Island', cities: ['Charlottetown','Summerside','Stratford','Cornwall','Montague'] },
+          'NT': { name: 'Northwest Territories', cities: ['Yellowknife','Hay River','Inuvik','Fort Smith'] },
+          'YT': { name: 'Yukon', cities: ['Whitehorse','Dawson City','Watson Lake'] },
+          'NU': { name: 'Nunavut', cities: ['Iqaluit','Rankin Inlet','Arviat'] }
+        }
+      },
+      US: {
+        label: 'State',
+        regions: {
+          'AL': { name: 'Alabama', cities: ['Birmingham','Montgomery','Huntsville','Mobile','Tuscaloosa'] },
+          'AK': { name: 'Alaska', cities: ['Anchorage','Fairbanks','Juneau','Sitka','Ketchikan'] },
+          'AZ': { name: 'Arizona', cities: ['Phoenix','Tucson','Scottsdale','Mesa','Chandler','Tempe','Gilbert','Glendale','Peoria','Sedona'] },
+          'AR': { name: 'Arkansas', cities: ['Little Rock','Fort Smith','Fayetteville','Springdale','Jonesboro'] },
+          'CA_US': { name: 'California', cities: ['Los Angeles','San Francisco','San Diego','San Jose','Sacramento','Oakland','Palo Alto','Irvine','Pasadena','Santa Monica','Monterey','Pebble Beach','Palm Springs','Napa'] },
+          'CO': { name: 'Colorado', cities: ['Denver','Colorado Springs','Aurora','Fort Collins','Boulder','Aspen','Vail'] },
+          'CT': { name: 'Connecticut', cities: ['Hartford','New Haven','Stamford','Bridgeport','Greenwich'] },
+          'DE': { name: 'Delaware', cities: ['Wilmington','Dover','Newark','Rehoboth Beach'] },
+          'FL': { name: 'Florida', cities: ['Miami','Orlando','Tampa','Jacksonville','Fort Lauderdale','Naples','St. Augustine','Sarasota','Palm Beach','Ponte Vedra Beach'] },
+          'GA': { name: 'Georgia', cities: ['Atlanta','Augusta','Savannah','Athens','Macon','Roswell'] },
+          'HI': { name: 'Hawaii', cities: ['Honolulu','Maui','Kailua','Hilo','Kapolei'] },
+          'ID': { name: 'Idaho', cities: ['Boise','Meridian','Nampa','Idaho Falls','Coeur d\'Alene','Sun Valley'] },
+          'IL': { name: 'Illinois', cities: ['Chicago','Aurora','Naperville','Springfield','Peoria','Rockford'] },
+          'IN': { name: 'Indiana', cities: ['Indianapolis','Fort Wayne','Evansville','South Bend','Carmel'] },
+          'IA': { name: 'Iowa', cities: ['Des Moines','Cedar Rapids','Davenport','Sioux City','Iowa City'] },
+          'KS': { name: 'Kansas', cities: ['Wichita','Overland Park','Kansas City','Topeka','Olathe'] },
+          'KY': { name: 'Kentucky', cities: ['Louisville','Lexington','Bowling Green','Owensboro','Covington'] },
+          'LA': { name: 'Louisiana', cities: ['New Orleans','Baton Rouge','Shreveport','Lafayette','Lake Charles'] },
+          'ME': { name: 'Maine', cities: ['Portland','Lewiston','Bangor','South Portland','Auburn'] },
+          'MD': { name: 'Maryland', cities: ['Baltimore','Bethesda','Annapolis','Rockville','Frederick'] },
+          'MA': { name: 'Massachusetts', cities: ['Boston','Worcester','Springfield','Cambridge','Brookline'] },
+          'MI': { name: 'Michigan', cities: ['Detroit','Grand Rapids','Ann Arbor','Lansing','Traverse City'] },
+          'MN': { name: 'Minnesota', cities: ['Minneapolis','St. Paul','Rochester','Duluth','Bloomington'] },
+          'MS': { name: 'Mississippi', cities: ['Jackson','Gulfport','Biloxi','Hattiesburg','Southaven'] },
+          'MO': { name: 'Missouri', cities: ['Kansas City','St. Louis','Springfield','Columbia','Jefferson City'] },
+          'MT': { name: 'Montana', cities: ['Billings','Missoula','Great Falls','Bozeman','Helena'] },
+          'NE': { name: 'Nebraska', cities: ['Omaha','Lincoln','Bellevue','Grand Island','Kearney'] },
+          'NV': { name: 'Nevada', cities: ['Las Vegas','Henderson','Reno','North Las Vegas','Sparks'] },
+          'NH': { name: 'New Hampshire', cities: ['Manchester','Nashua','Concord','Dover','Portsmouth'] },
+          'NJ': { name: 'New Jersey', cities: ['Newark','Jersey City','Princeton','Hoboken','Atlantic City'] },
+          'NM': { name: 'New Mexico', cities: ['Albuquerque','Santa Fe','Las Cruces','Rio Rancho','Roswell'] },
+          'NY': { name: 'New York', cities: ['New York City','Buffalo','Rochester','Albany','Syracuse','Westchester'] },
+          'NC': { name: 'North Carolina', cities: ['Charlotte','Raleigh','Durham','Greensboro','Pinehurst','Asheville'] },
+          'ND': { name: 'North Dakota', cities: ['Fargo','Bismarck','Grand Forks','Minot','West Fargo'] },
+          'OH': { name: 'Ohio', cities: ['Columbus','Cleveland','Cincinnati','Toledo','Akron','Dublin'] },
+          'OK': { name: 'Oklahoma', cities: ['Oklahoma City','Tulsa','Norman','Broken Arrow','Edmond'] },
+          'OR': { name: 'Oregon', cities: ['Portland','Salem','Eugene','Bend','Medford'] },
+          'PA': { name: 'Pennsylvania', cities: ['Philadelphia','Pittsburgh','Allentown','Erie','Reading'] },
+          'RI': { name: 'Rhode Island', cities: ['Providence','Warwick','Cranston','Pawtucket','Newport'] },
+          'SC': { name: 'South Carolina', cities: ['Charleston','Columbia','Myrtle Beach','Hilton Head','Greenville','Kiawah Island'] },
+          'SD': { name: 'South Dakota', cities: ['Sioux Falls','Rapid City','Aberdeen','Brookings','Watertown'] },
+          'TN': { name: 'Tennessee', cities: ['Nashville','Memphis','Knoxville','Chattanooga','Clarksville'] },
+          'TX': { name: 'Texas', cities: ['Houston','Dallas','Austin','San Antonio','Fort Worth','El Paso','Plano'] },
+          'UT': { name: 'Utah', cities: ['Salt Lake City','Provo','West Valley City','St. George','Park City'] },
+          'VT': { name: 'Vermont', cities: ['Burlington','South Burlington','Rutland','Montpelier','Stowe'] },
+          'VA': { name: 'Virginia', cities: ['Virginia Beach','Richmond','Arlington','Norfolk','Alexandria'] },
+          'WA': { name: 'Washington', cities: ['Seattle','Spokane','Tacoma','Bellevue','Kirkland'] },
+          'WV': { name: 'West Virginia', cities: ['Charleston','Huntington','Morgantown','Parkersburg','Wheeling'] },
+          'WI': { name: 'Wisconsin', cities: ['Milwaukee','Madison','Green Bay','Kenosha','Racine','Kohler'] },
+          'WY': { name: 'Wyoming', cities: ['Cheyenne','Casper','Laramie','Gillette','Jackson'] },
+          'DC': { name: 'District of Columbia', cities: ['Washington'] }
+        }
+      }
+    };
 
     // ========== STATE ==========
     let state = {
@@ -962,14 +1021,14 @@
 
     // ========== DEMO DATA ==========
     const DEMO_PROFILES = [
-      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', location: 'San Francisco, CA', distance: 3, handicap: 4.2, budget: 150, sports: ['Golf','Tennis','Running'], bio: 'Single-digit handicap chasing scratch. Love playing premium courses on weekends. Always down for a competitive round!', avatar: '&#127948;' },
-      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', location: 'San Francisco, CA', distance: 5, handicap: 18.5, budget: 75, sports: ['Golf','Yoga','Cycling'], bio: 'Mid-handicapper working on my short game. I prefer muni courses — it\'s about the walk, not the wallet!', avatar: '&#127948;' },
-      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', location: 'Oakland, CA', distance: 12, handicap: 36.0, budget: 50, sports: ['Golf','Tennis','Cycling'], bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners. Budget-friendly courses preferred.', avatar: '&#9971;' },
-      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', location: 'San Jose, CA', distance: 42, handicap: -1.4, budget: 200, sports: ['Golf','Swimming','CrossFit'], bio: 'Plus handicap, competed in college. I play mostly premium/resort courses. Looking for serious playing partners.', avatar: '&#127948;' },
-      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', location: 'Palo Alto, CA', distance: 28, handicap: 14.0, budget: 100, sports: ['Golf','Rock Climbing','Yoga'], bio: 'Bogey golfer who loves a good time on the course. I play mid-range courses 2x a week. Let\'s tee it up!', avatar: '&#9971;' },
-      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', location: 'Berkeley, CA', distance: 15, handicap: 28.3, budget: 50, sports: ['Golf','Running','Pickleball'], bio: 'High handicapper but improving fast! I stick to affordable public courses. Looking for chill playing partners.', avatar: '&#127948;' },
-      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', location: 'San Francisco, CA', distance: 2, handicap: 1.8, budget: 300, sports: ['Golf','Boxing','Tennis'], bio: 'Scratch golfer, former mini-tour player. I play everywhere from munis to resort courses. Down for any stakes.', avatar: '&#127948;' },
-      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', location: 'Mountain View, CA', distance: 35, handicap: 42.0, budget: 30, sports: ['Golf','Pickleball','Volleyball'], bio: 'Total beginner — just got my first set of clubs! Looking for someone patient. Twilight rounds are my thing.', avatar: '&#9971;' }
+      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', country: 'CA', region: 'ON', city: 'Toronto', distance: 5, handicap: 4.2, budget: 150, bio: 'Single-digit handicap chasing scratch. Love playing the premium courses around the GTA. Always down for a competitive round!', avatar: '&#127948;' },
+      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', country: 'CA', region: 'ON', city: 'Mississauga', distance: 12, handicap: 18.5, budget: 75, bio: 'Mid-handicapper working on my short game. I play Lakeview and Credit Valley mostly — it\'s about the walk, not the wallet!', avatar: '&#127948;' },
+      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', country: 'CA', region: 'ON', city: 'Brampton', distance: 18, handicap: 36.0, budget: 50, bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners. Budget-friendly courses preferred.', avatar: '&#9971;' },
+      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', country: 'CA', region: 'ON', city: 'Oakville', distance: 30, handicap: -1.4, budget: 200, bio: 'Plus handicap, competed in university. I play Glen Abbey, RattleSnake Point. Looking for serious playing partners.', avatar: '&#127948;' },
+      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', country: 'CA', region: 'ON', city: 'Markham', distance: 15, handicap: 14.0, budget: 100, bio: 'Bogey golfer who loves a good time on the course. Angus Glen is my home course. Let\'s tee it up!', avatar: '&#9971;' },
+      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', country: 'CA', region: 'ON', city: 'Hamilton', distance: 45, handicap: 28.3, budget: 50, bio: 'High handicapper but improving fast! I stick to affordable public courses around the Hammer. Looking for chill playing partners.', avatar: '&#127948;' },
+      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', country: 'CA', region: 'ON', city: 'Vaughan', distance: 8, handicap: 1.8, budget: 300, bio: 'Scratch golfer, former OUA player. I play everywhere from munis to private clubs. Down for any stakes.', avatar: '&#127948;' },
+      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', country: 'CA', region: 'ON', city: 'Richmond Hill', distance: 10, handicap: 42.0, budget: 30, bio: 'Total beginner — just got my first set of clubs! Looking for someone patient. Twilight rounds at Mill Pond are my thing.', avatar: '&#9971;' }
     ];
 
     const DEMO_USER = {
@@ -977,10 +1036,11 @@
       name: 'You (Demo)',
       age: 27,
       gender: 'male',
-      location: 'San Francisco, CA',
+      country: 'CA',
+      region: 'ON',
+      city: 'Toronto',
       handicap: 12.0,
       budget: 100,
-      sports: ['Golf', 'Tennis', 'Pickleball'],
       bio: 'Demo mode — explore the app!',
       avatar: '&#11088;'
     };
@@ -1105,10 +1165,11 @@
           card.style.transform = 'scale(0.95) translateY(8px)';
           card.style.opacity = '0.7';
         }
-        const distText = profile.distance != null ? `${profile.distance} mi away` : '';
+        const loc = getLocationDisplay(profile);
+        const distText = profile.distance != null ? `${profile.distance} km away` : '';
         const hcpText = profile.handicap != null ? `HCP ${profile.handicap >= 0 ? '+' : ''}${profile.handicap}` : '';
         const budgetText = profile.budget != null ? `$${profile.budget}/round` : '';
-        const metaParts = [profile.location, distText, hcpText, budgetText].filter(Boolean);
+        const metaParts = [loc, distText, hcpText, budgetText].filter(Boolean);
         card.innerHTML = `
           <div class="swipe-indicator like">PLAY</div>
           <div class="swipe-indicator pass">PASS</div>
@@ -1116,7 +1177,6 @@
           <div class="card-info">
             <h3>${profile.name}, ${profile.age}</h3>
             <div class="card-meta">${metaParts.join(' &middot; ')}</div>
-            <div class="card-sports">${profile.sports.map(s => `<span>${s}</span>`).join('')}</div>
             <p style="margin-top:8px;font-size:13px;color:var(--text-muted);">${profile.bio}</p>
           </div>
         `;
@@ -1219,9 +1279,9 @@
 
     function generateDemoMessages(profile) {
       const msgs = [
-        { from: profile.id, text: `Hey! I see you play ${profile.sports[0]} too. Want to hit sometime?`, time: new Date(Date.now() - 3600000).toISOString() },
+        { from: profile.id, text: `Hey! Want to get a round in sometime? I usually play around ${profile.city || 'the area'}.`, time: new Date(Date.now() - 3600000).toISOString() },
         { from: 'demo-user', text: `Definitely! I usually play on weekends. What's your schedule like?`, time: new Date(Date.now() - 3000000).toISOString() },
-        { from: profile.id, text: `Weekends work great! Saturday mornings are my go-to.`, time: new Date(Date.now() - 2400000).toISOString() },
+        { from: profile.id, text: `Weekends work great! Saturday morning tee time?`, time: new Date(Date.now() - 2400000).toISOString() },
       ];
       return msgs;
     }
@@ -1297,7 +1357,7 @@
     }
 
     function updateDistanceDisplay() {
-      $('distance-display').textContent = $('filter-distance').value + ' mi';
+      $('distance-display').textContent = $('filter-distance').value + ' km';
     }
 
     function updateBudgetDisplay() {
@@ -1381,7 +1441,7 @@
         tags.push({ label: `Budget ≤ $${f.maxBudget}`, key: 'budget' });
       }
       if (f.maxDistance < 50) {
-        tags.push({ label: `Within ${f.maxDistance} mi`, key: 'distance' });
+        tags.push({ label: `Within ${f.maxDistance} km`, key: 'distance' });
       }
       container.innerHTML = tags.map(t =>
         `<span class="active-filter-tag">${t.label}<span class="remove-filter" onclick="removeFilter('${t.key}')">&times;</span></span>`
@@ -1474,12 +1534,12 @@
           const profile = state.matches.find(m => m.id === state.currentChat);
           if (!profile) return;
           const replies = [
-            `Sounds great! See you on the court!`,
-            `I'm free this weekend, let's do it!`,
-            `Awesome, I'll bring an extra racket just in case.`,
-            `Perfect, looking forward to it!`,
+            `Sounds great! See you on the first tee!`,
+            `I'm free this weekend, let's book a tee time!`,
+            `Awesome, I'll check if there's availability Saturday morning.`,
+            `Perfect, looking forward to it! What course were you thinking?`,
             `Let me check my schedule and get back to you.`,
-            `I know a great spot we can play at!`
+            `I know a great course we should try — great condition right now!`
           ];
           const reply = { from: profile.id, text: replies[Math.floor(Math.random() * replies.length)], time: new Date().toISOString() };
           state.conversations[state.currentChat].push(reply);
@@ -1535,38 +1595,88 @@
       showScreen('discover');
     }
 
-    // ========== PROFILE ==========
-    function renderSportTags() {
-      const container = $('sport-tags');
-      container.innerHTML = SPORTS.map(s =>
-        `<div class="sport-tag" data-sport="${s}" onclick="toggleSport(this)">${s}</div>`
-      ).join('');
+    // ========== LOCATION HELPERS ==========
+    function getLocationDisplay(profile) {
+      if (!profile.country) return profile.location || '';
+      const countryData = LOCATION_DATA[profile.country];
+      if (!countryData) return '';
+      const regionData = countryData.regions[profile.region];
+      const cityName = profile.city || '';
+      const regionName = regionData ? regionData.name : '';
+      const parts = [cityName, regionName].filter(Boolean);
+      return parts.join(', ');
     }
 
-    function toggleSport(el) {
-      el.classList.toggle('selected');
+    function onCountryChange() {
+      const country = $('setup-country').value;
+      const regionSel = $('setup-region');
+      const citySel = $('setup-city');
+      regionSel.innerHTML = '<option value="">Select...</option>';
+      citySel.innerHTML = '<option value="">Select city</option>';
+      $('city-group').style.display = 'none';
+
+      if (!country || !LOCATION_DATA[country]) {
+        $('region-group').style.display = 'none';
+        return;
+      }
+      const data = LOCATION_DATA[country];
+      $('region-label').textContent = data.label;
+      const sorted = Object.entries(data.regions).sort((a, b) => a[1].name.localeCompare(b[1].name));
+      sorted.forEach(([code, info]) => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = info.name;
+        regionSel.appendChild(opt);
+      });
+      $('region-group').style.display = 'flex';
     }
+
+    function onRegionChange() {
+      const country = $('setup-country').value;
+      const region = $('setup-region').value;
+      const citySel = $('setup-city');
+      citySel.innerHTML = '<option value="">Select city</option>';
+
+      if (!country || !region || !LOCATION_DATA[country]) {
+        $('city-group').style.display = 'none';
+        return;
+      }
+      const regionData = LOCATION_DATA[country].regions[region];
+      if (!regionData) { $('city-group').style.display = 'none'; return; }
+      regionData.cities.sort().forEach(city => {
+        const opt = document.createElement('option');
+        opt.value = city;
+        opt.textContent = city;
+        citySel.appendChild(opt);
+      });
+      $('city-group').style.display = 'flex';
+    }
+
+    // ========== PROFILE ==========
 
     async function saveProfile() {
       const name = $('setup-name').value.trim();
       const age = parseInt($('setup-age').value);
       const gender = $('setup-gender').value;
-      const location = $('setup-location').value.trim();
+      const country = $('setup-country').value;
+      const region = $('setup-region').value;
+      const city = $('setup-city').value;
       const handicap = $('setup-handicap').value ? parseFloat($('setup-handicap').value) : null;
       const budget = $('setup-budget').value ? parseInt($('setup-budget').value) : null;
       const bio = $('setup-bio').value.trim();
-      const sports = Array.from(document.querySelectorAll('.sport-tag.selected')).map(el => el.dataset.sport);
 
       if (!name) { showToast('Please enter your name'); return; }
       if (!age || age < 16) { showToast('Please enter a valid age'); return; }
-      if (sports.length === 0) { showToast('Select at least one sport'); return; }
+      if (!country) { showToast('Please select your country'); return; }
+      if (!region) { showToast('Please select your province/state'); return; }
+      if (!city) { showToast('Please select your city'); return; }
 
-      state.user = { ...state.user, name, age, gender, location, handicap, budget, bio, sports, avatar: randomAvatar() };
+      state.user = { ...state.user, name, age, gender, country, region, city, handicap, budget, bio, avatar: randomAvatar() };
 
       if (state.mode === 'live' && state.supabase) {
         await state.supabase.from('profiles').upsert({
           id: state.user.id,
-          name, age, location, skill, bio, sports, avatar: state.user.avatar
+          name, age, country, region, city, handicap, budget, bio, avatar: state.user.avatar
         });
         await loadLiveData();
       }
@@ -1580,25 +1690,30 @@
       $('profile-name').textContent = state.user.name;
       const hcp = state.user.handicap != null ? `HCP ${state.user.handicap >= 0 ? '+' : ''}${state.user.handicap}` : '';
       const budget = state.user.budget ? `$${state.user.budget}/round` : '';
-      $('profile-meta').textContent = [state.user.age, state.user.location, hcp, budget].filter(Boolean).join(' · ');
+      const loc = getLocationDisplay(state.user);
+      $('profile-meta').textContent = [state.user.age, loc, hcp, budget].filter(Boolean).join(' · ');
       $('stat-matches').textContent = state.matches.length;
       $('stat-played').textContent = '0';
-      $('stat-sports').textContent = (state.user.sports || []).length;
+      $('stat-rounds').textContent = '0';
     }
 
     function editProfile() {
       $('setup-name').value = state.user.name || '';
       $('setup-age').value = state.user.age || '';
       $('setup-gender').value = state.user.gender || 'prefer-not';
-      $('setup-location').value = state.user.location || '';
+      // Restore location dropdowns
+      $('setup-country').value = state.user.country || '';
+      if (state.user.country) {
+        onCountryChange();
+        $('setup-region').value = state.user.region || '';
+        if (state.user.region) {
+          onRegionChange();
+          $('setup-city').value = state.user.city || '';
+        }
+      }
       $('setup-handicap').value = state.user.handicap != null ? state.user.handicap : '';
       $('setup-budget').value = state.user.budget || '';
       $('setup-bio').value = state.user.bio || '';
-      renderSportTags();
-      (state.user.sports || []).forEach(s => {
-        const tag = document.querySelector(`.sport-tag[data-sport="${s}"]`);
-        if (tag) tag.classList.add('selected');
-      });
       showScreen('setup');
     }
 
@@ -1652,7 +1767,6 @@
 
     // ========== INIT ==========
     function init() {
-      renderSportTags();
       // Try to init Supabase
       if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
         state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
