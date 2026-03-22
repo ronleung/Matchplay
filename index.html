@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Match Play</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --primary-light: #818cf8;
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --bg-input: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-yellow: #eab308;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Layout ---- */
+    .app-container {
+      max-width: 480px;
+      width: 100%;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .screen { display: none; flex: 1; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    /* ---- Header ---- */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary-light), var(--accent-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header-actions { display: flex; gap: 8px; }
+
+    /* ---- Bottom Nav ---- */
+    .bottom-nav {
+      display: flex;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      background: var(--bg-card);
+      position: sticky;
+      bottom: 0;
+    }
+    .nav-btn {
+      flex: 1;
+      padding: 12px 0 8px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: color 0.2s;
+    }
+    .nav-btn.active { color: var(--primary-light); }
+    .nav-btn svg { width: 24px; height: 24px; }
+
+    /* ---- Buttons ---- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-light);
+      border: 1.5px solid var(--primary);
+    }
+    .btn-outline:hover { background: rgba(99,102,241,0.1); }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: none; padding: 8px; }
+    .btn-icon {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      padding: 0;
+      font-size: 22px;
+    }
+    .btn-like { background: var(--accent-green); color: white; }
+    .btn-pass { background: var(--accent-red); color: white; }
+
+    /* ---- Inputs ---- */
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+    .input {
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border: 1.5px solid transparent;
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input:focus { border-color: var(--primary); }
+    select.input { cursor: pointer; }
+
+    /* ---- Auth Screen ---- */
+    .auth-screen {
+      justify-content: center;
+      align-items: center;
+      padding: 40px 24px;
+      gap: 32px;
+    }
+    .auth-logo {
+      font-size: 48px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary-light), var(--accent-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .auth-subtitle { color: var(--text-muted); font-size: 15px; text-align: center; }
+    .auth-form { width: 100%; display: flex; flex-direction: column; gap: 16px; }
+    .auth-toggle { color: var(--primary-light); background: none; border: none; cursor: pointer; font-size: 14px; }
+    .auth-divider {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--text-muted); font-size: 13px;
+    }
+    .auth-divider::before, .auth-divider::after {
+      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1);
+    }
+
+    /* ---- Profile Setup ---- */
+    .profile-setup { padding: 24px; gap: 20px; }
+    .profile-setup h2 { font-size: 22px; }
+    .avatar-upload {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 36px;
+      color: var(--text-muted);
+      align-self: center;
+      border: 2px dashed rgba(255,255,255,0.15);
+      overflow: hidden;
+    }
+    .avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
+    .sport-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sport-tag {
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: var(--bg-input);
+      border: 1.5px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .sport-tag.selected {
+      border-color: var(--primary);
+      color: var(--primary-light);
+      background: rgba(99,102,241,0.15);
+    }
+
+    /* ---- Discover / Cards ---- */
+    .discover-screen { padding: 0; }
+    .card-stack {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: hidden;
+    }
+    .match-card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--bg-card);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      position: absolute;
+      transition: transform 0.4s ease, opacity 0.4s ease;
+      cursor: grab;
+    }
+    .match-card.dragging { cursor: grabbing; transition: none; }
+    .match-card .card-img {
+      width: 100%;
+      height: 320px;
+      object-fit: cover;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      color: var(--text-muted);
+    }
+    .card-info { padding: 16px 20px; }
+    .card-info h3 { font-size: 20px; margin-bottom: 4px; }
+    .card-info .card-meta { color: var(--text-muted); font-size: 13px; margin-bottom: 10px; }
+    .card-info .card-sports { display: flex; gap: 6px; flex-wrap: wrap; }
+    .card-info .card-sports span {
+      font-size: 11px;
+      padding: 4px 10px;
+      background: rgba(99,102,241,0.15);
+      color: var(--primary-light);
+      border-radius: 12px;
+    }
+    .card-actions {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      padding: 16px 20px 24px;
+    }
+    .swipe-indicator {
+      position: absolute;
+      top: 20px;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .swipe-indicator.like {
+      right: 20px;
+      border: 3px solid var(--accent-green);
+      color: var(--accent-green);
+      transform: rotate(15deg);
+    }
+    .swipe-indicator.pass {
+      left: 20px;
+      border: 3px solid var(--accent-red);
+      color: var(--accent-red);
+      transform: rotate(-15deg);
+    }
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 40px;
+    }
+    .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* ---- Match Modal ---- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 24px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-card);
+      border-radius: 20px;
+      padding: 32px;
+      text-align: center;
+      max-width: 360px;
+      width: 100%;
+      animation: modalIn 0.3s ease;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal h2 { font-size: 28px; margin-bottom: 8px; }
+    .modal p { color: var(--text-muted); margin-bottom: 20px; }
+    .match-avatars { display: flex; justify-content: center; gap: 16px; margin-bottom: 16px; }
+    .match-avatars .avatar {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      border: 3px solid var(--accent-green);
+    }
+
+    /* ---- Matches List ---- */
+    .matches-screen { padding: 0; }
+    .matches-list { flex: 1; overflow-y: auto; }
+    .match-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .match-item:hover { background: rgba(255,255,255,0.03); }
+    .match-item .avatar {
+      width: 50px; height: 50px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .match-item .match-info { flex: 1; min-width: 0; }
+    .match-item .match-name { font-weight: 600; font-size: 15px; }
+    .match-item .match-preview {
+      color: var(--text-muted);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .match-item .match-time {
+      color: var(--text-muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .unread-dot {
+      width: 8px; height: 8px;
+      background: var(--primary);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ---- Chat Screen ---- */
+    .chat-screen { padding: 0; }
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .chat-header .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .message {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .message.sent {
+      align-self: flex-end;
+      background: var(--primary);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .message.received {
+      align-self: flex-start;
+      background: var(--bg-input);
+      border-bottom-left-radius: 4px;
+    }
+    .message .msg-time {
+      font-size: 10px;
+      opacity: 0.6;
+      margin-top: 4px;
+      display: block;
+    }
+    .chat-input-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      background: var(--bg-card);
+    }
+    .chat-input-bar input {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--bg-input);
+      border: none;
+      border-radius: 20px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+    }
+    .chat-input-bar button {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: none;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ---- Profile Screen ---- */
+    .profile-screen { padding: 24px; gap: 20px; overflow-y: auto; }
+    .profile-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+    }
+    .profile-card .avatar {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      margin: 0 auto 12px;
+    }
+    .profile-card h3 { font-size: 20px; margin-bottom: 4px; }
+    .profile-card .profile-meta { color: var(--text-muted); font-size: 13px; }
+    .profile-stats {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-top: 16px;
+    }
+    .profile-stat { text-align: center; }
+    .profile-stat .stat-num { font-size: 20px; font-weight: 700; }
+    .profile-stat .stat-label { font-size: 11px; color: var(--text-muted); }
+    .settings-section {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .settings-item:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .settings-item:hover { background: rgba(255,255,255,0.03); }
+    .settings-item span { font-size: 14px; }
+    .settings-item .arrow { color: var(--text-muted); }
+
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg-card);
+      color: var(--text);
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 200;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ---- Demo Badge ---- */
+    .demo-badge {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      background: var(--accent-yellow);
+      color: #000;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      z-index: 300;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- AUTH SCREEN -->
+    <div id="auth-screen" class="screen auth-screen active">
+      <div class="auth-logo">Match Play</div>
+      <p class="auth-subtitle">Find your perfect sports partner</p>
+      <div class="auth-form">
+        <div class="input-group">
+          <label>Email</label>
+          <input id="auth-email" class="input" type="email" placeholder="you@example.com">
+        </div>
+        <div class="input-group">
+          <label>Password</label>
+          <input id="auth-password" class="input" type="password" placeholder="Min 6 characters">
+        </div>
+        <button id="auth-submit" class="btn btn-primary" onclick="handleAuth()">Sign In</button>
+        <button class="auth-toggle" onclick="toggleAuthMode()">
+          <span id="auth-toggle-text">Don't have an account? Sign up</span>
+        </button>
+        <div class="auth-divider">or</div>
+        <button class="btn btn-outline" onclick="enterDemoMode()">Try Demo Mode</button>
+      </div>
+    </div>
+
+    <!-- PROFILE SETUP SCREEN -->
+    <div id="setup-screen" class="screen profile-setup">
+      <h2>Set up your profile</h2>
+      <div class="avatar-upload" onclick="pickAvatar()" id="avatar-upload">+</div>
+      <div class="input-group">
+        <label>Display Name</label>
+        <input id="setup-name" class="input" placeholder="Your name">
+      </div>
+      <div class="input-group">
+        <label>Age</label>
+        <input id="setup-age" class="input" type="number" placeholder="25" min="16" max="99">
+      </div>
+      <div class="input-group">
+        <label>Location</label>
+        <input id="setup-location" class="input" placeholder="City, State">
+      </div>
+      <div class="input-group">
+        <label>Skill Level</label>
+        <select id="setup-skill" class="input">
+          <option value="beginner">Beginner</option>
+          <option value="intermediate" selected>Intermediate</option>
+          <option value="advanced">Advanced</option>
+          <option value="pro">Pro / Competitive</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Select your sports</label>
+        <div class="sport-tags" id="sport-tags"></div>
+      </div>
+      <div class="input-group">
+        <label>Bio</label>
+        <textarea id="setup-bio" class="input" rows="3" placeholder="Tell others about yourself..."></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="saveProfile()" style="margin-top:8px;">Save & Start Matching</button>
+    </div>
+
+    <!-- DISCOVER SCREEN -->
+    <div id="discover-screen" class="screen discover-screen">
+      <div class="header">
+        <h1>Match Play</h1>
+        <div class="header-actions">
+          <button class="btn-ghost" onclick="showFilters()" title="Filters">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="card-stack" id="card-stack">
+        <div class="empty-state" id="empty-state" style="display:none;">
+          <div class="empty-icon">&#127934;</div>
+          <h3>No more players</h3>
+          <p>Check back later for new matches!</p>
+        </div>
+      </div>
+      <div class="card-actions" id="card-actions">
+        <button class="btn btn-icon btn-pass" onclick="passCard()" title="Pass">&#10007;</button>
+        <button class="btn btn-icon btn-like" onclick="likeCard()" title="Like">&#10003;</button>
+      </div>
+    </div>
+
+    <!-- MATCHES SCREEN -->
+    <div id="matches-screen" class="screen matches-screen">
+      <div class="header"><h1>Matches</h1></div>
+      <div class="matches-list" id="matches-list"></div>
+    </div>
+
+    <!-- CHAT SCREEN -->
+    <div id="chat-screen" class="screen chat-screen">
+      <div class="chat-header">
+        <button class="btn-ghost" onclick="navigateTo('matches')">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="avatar" id="chat-avatar"></div>
+        <span id="chat-name" style="font-weight:600;"></span>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-bar">
+        <input id="chat-input" type="text" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMessage()">
+        <button onclick="sendMessage()">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- PROFILE SCREEN -->
+    <div id="profile-screen" class="screen profile-screen">
+      <div class="profile-card">
+        <div class="avatar" id="profile-avatar"></div>
+        <h3 id="profile-name"></h3>
+        <p class="profile-meta" id="profile-meta"></p>
+        <div class="profile-stats">
+          <div class="profile-stat"><div class="stat-num" id="stat-matches">0</div><div class="stat-label">Matches</div></div>
+          <div class="profile-stat"><div class="stat-num" id="stat-played">0</div><div class="stat-label">Played</div></div>
+          <div class="profile-stat"><div class="stat-num" id="stat-sports">0</div><div class="stat-label">Sports</div></div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-item" onclick="editProfile()"><span>Edit Profile</span><span class="arrow">&#8250;</span></div>
+        <div class="settings-item" onclick="showFilters()"><span>Match Preferences</span><span class="arrow">&#8250;</span></div>
+        <div class="settings-item" onclick="handleLogout()"><span style="color:var(--accent-red);">Sign Out</span><span class="arrow">&#8250;</span></div>
+      </div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav" id="bottom-nav" style="display:none;">
+      <button class="nav-btn active" data-screen="discover" onclick="navigateTo('discover')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36z"/></svg>
+        Discover
+      </button>
+      <button class="nav-btn" data-screen="matches" onclick="navigateTo('matches')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Matches
+      </button>
+      <button class="nav-btn" data-screen="profile" onclick="navigateTo('profile')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profile
+      </button>
+    </nav>
+  </div>
+
+  <!-- Match Modal -->
+  <div class="modal-overlay" id="match-modal">
+    <div class="modal">
+      <h2>It's a Match! &#127881;</h2>
+      <div class="match-avatars">
+        <div class="avatar" id="modal-avatar-me"></div>
+        <div class="avatar" id="modal-avatar-them"></div>
+      </div>
+      <p id="modal-match-text">You and <strong></strong> both want to play!</p>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:8px;" onclick="startChatFromMatch()">Send a Message</button>
+      <button class="btn btn-outline" style="width:100%;" onclick="closeMatchModal()">Keep Swiping</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    // ========== CONFIG ==========
+    const SUPABASE_URL = '';
+    const SUPABASE_KEY = '';
+
+    const SPORTS = [
+      'Tennis', 'Pickleball', 'Badminton', 'Squash',
+      'Table Tennis', 'Golf', 'Basketball', 'Soccer',
+      'Volleyball', 'Running', 'Cycling', 'Swimming',
+      'Rock Climbing', 'Boxing', 'Yoga', 'CrossFit'
+    ];
+
+    const AVATARS = ['&#127939;','&#127947;','&#127948;','&#127946;','&#9975;','&#127938;','&#127934;','&#128692;'];
+
+    // ========== STATE ==========
+    let state = {
+      mode: null,        // 'demo' | 'live'
+      user: null,        // current user profile
+      authMode: 'signin', // 'signin' | 'signup'
+      profiles: [],      // browsable profiles
+      cardIndex: 0,
+      matches: [],       // matched profiles
+      conversations: {}, // matchId -> [messages]
+      currentChat: null, // matchId for open chat
+      supabase: null
+    };
+
+    // ========== DEMO DATA ==========
+    const DEMO_PROFILES = [
+      { id: 'd1', name: 'Alex Chen', age: 28, location: 'San Francisco, CA', skill: 'advanced', sports: ['Tennis','Pickleball','Running'], bio: 'NTRP 4.5 player, always looking for rallying partners. Also into pickleball on weekends!', avatar: '&#127934;' },
+      { id: 'd2', name: 'Jordan Lee', age: 25, location: 'San Francisco, CA', skill: 'intermediate', sports: ['Basketball','Soccer','Volleyball'], bio: 'Former college basketball player. I run pickup games every Saturday at Golden Gate Park.', avatar: '&#127936;' },
+      { id: 'd3', name: 'Sam Rivera', age: 32, location: 'Oakland, CA', skill: 'beginner', sports: ['Golf','Tennis','Cycling'], bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners.', avatar: '&#9971;' },
+      { id: 'd4', name: 'Casey Kim', age: 27, location: 'San Jose, CA', skill: 'pro', sports: ['Badminton','Table Tennis','Squash'], bio: 'Competitive badminton player. I train 5 days a week. Looking for serious hitting partners.', avatar: '&#127947;' },
+      { id: 'd5', name: 'Morgan Park', age: 30, location: 'Palo Alto, CA', skill: 'intermediate', sports: ['Rock Climbing','Yoga','CrossFit'], bio: 'Climbing V5-V6 range. I go to Planet Granite most evenings. Let\'s boulder together!', avatar: '&#129495;' },
+      { id: 'd6', name: 'Riley Davis', age: 24, location: 'Berkeley, CA', skill: 'intermediate', sports: ['Swimming','Running','Cycling'], bio: 'Training for my first triathlon. Would love training buddies who can push my pace!', avatar: '&#127946;' },
+      { id: 'd7', name: 'Taylor Nguyen', age: 29, location: 'San Francisco, CA', skill: 'advanced', sports: ['Tennis','Boxing','CrossFit'], bio: 'Former D3 tennis player. I also box at a local gym. Down for any competitive sport.', avatar: '&#129354;' },
+      { id: 'd8', name: 'Avery Singh', age: 26, location: 'Mountain View, CA', skill: 'beginner', sports: ['Pickleball','Volleyball','Yoga'], bio: 'New to pickleball and totally addicted! Chill vibes, just here to have fun and improve.', avatar: '&#127939;' }
+    ];
+
+    const DEMO_USER = {
+      id: 'demo-user',
+      name: 'You (Demo)',
+      age: 27,
+      location: 'San Francisco, CA',
+      skill: 'intermediate',
+      sports: ['Tennis', 'Pickleball', 'Running'],
+      bio: 'Demo mode — explore the app!',
+      avatar: '&#11088;'
+    };
+
+    // ========== UTILITIES ==========
+    function $(id) { return document.getElementById(id); }
+    function showToast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+    function timeAgo(date) {
+      const s = Math.floor((Date.now() - new Date(date)) / 1000);
+      if (s < 60) return 'now';
+      if (s < 3600) return Math.floor(s / 60) + 'm';
+      if (s < 86400) return Math.floor(s / 3600) + 'h';
+      return Math.floor(s / 86400) + 'd';
+    }
+    function randomAvatar() { return AVATARS[Math.floor(Math.random() * AVATARS.length)]; }
+
+    // ========== AUTH ==========
+    function toggleAuthMode() {
+      state.authMode = state.authMode === 'signin' ? 'signup' : 'signin';
+      $('auth-submit').textContent = state.authMode === 'signin' ? 'Sign In' : 'Sign Up';
+      $('auth-toggle-text').textContent = state.authMode === 'signin'
+        ? "Don't have an account? Sign up"
+        : "Already have an account? Sign in";
+    }
+
+    async function handleAuth() {
+      const email = $('auth-email').value.trim();
+      const pass = $('auth-password').value;
+      if (!email || pass.length < 6) {
+        showToast('Enter a valid email and password (6+ chars)');
+        return;
+      }
+      if (!state.supabase) {
+        showToast('Supabase not configured — try Demo Mode');
+        return;
+      }
+      try {
+        let result;
+        if (state.authMode === 'signup') {
+          result = await state.supabase.auth.signUp({ email, password: pass });
+        } else {
+          result = await state.supabase.auth.signInWithPassword({ email, password: pass });
+        }
+        if (result.error) throw result.error;
+        state.mode = 'live';
+        state.user = { id: result.data.user.id, email };
+        const { data: profile } = await state.supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', state.user.id)
+          .single();
+        if (profile && profile.name) {
+          state.user = { ...state.user, ...profile };
+          await loadLiveData();
+          showApp();
+        } else {
+          showScreen('setup');
+        }
+      } catch (e) {
+        showToast(e.message || 'Auth failed');
+      }
+    }
+
+    function enterDemoMode() {
+      state.mode = 'demo';
+      state.user = { ...DEMO_USER };
+      state.profiles = [...DEMO_PROFILES];
+      state.cardIndex = 0;
+      state.matches = [];
+      state.conversations = {};
+      // Add demo badge
+      if (!document.querySelector('.demo-badge')) {
+        const badge = document.createElement('div');
+        badge.className = 'demo-badge';
+        badge.textContent = 'DEMO';
+        document.body.appendChild(badge);
+      }
+      showApp();
+    }
+
+    async function handleLogout() {
+      if (state.supabase) {
+        await state.supabase.auth.signOut();
+      }
+      state = { mode: null, user: null, authMode: 'signin', profiles: [], cardIndex: 0, matches: [], conversations: {}, currentChat: null, supabase: state.supabase };
+      const badge = document.querySelector('.demo-badge');
+      if (badge) badge.remove();
+      $('bottom-nav').style.display = 'none';
+      showScreen('auth');
+    }
+    // ========== MATCHING / CARDS ==========
+    function renderCards() {
+      const stack = $('card-stack');
+      const empty = $('empty-state');
+      // Clear existing cards
+      stack.querySelectorAll('.match-card').forEach(c => c.remove());
+
+      const remaining = state.profiles.slice(state.cardIndex);
+      if (remaining.length === 0) {
+        empty.style.display = 'block';
+        $('card-actions').style.display = 'none';
+        return;
+      }
+      empty.style.display = 'none';
+      $('card-actions').style.display = 'flex';
+
+      // Render top 2 cards (next underneath, current on top)
+      const toShow = remaining.slice(0, 2).reverse();
+      toShow.forEach((profile, i) => {
+        const isTop = i === toShow.length - 1;
+        const card = document.createElement('div');
+        card.className = 'match-card';
+        card.style.zIndex = i + 1;
+        if (!isTop) {
+          card.style.transform = 'scale(0.95) translateY(8px)';
+          card.style.opacity = '0.7';
+        }
+        card.innerHTML = `
+          <div class="swipe-indicator like">PLAY</div>
+          <div class="swipe-indicator pass">PASS</div>
+          <div class="card-img">${profile.avatar || randomAvatar()}</div>
+          <div class="card-info">
+            <h3>${profile.name}, ${profile.age}</h3>
+            <div class="card-meta">${profile.location} &middot; ${profile.skill}</div>
+            <div class="card-sports">${profile.sports.map(s => `<span>${s}</span>`).join('')}</div>
+            <p style="margin-top:8px;font-size:13px;color:var(--text-muted);">${profile.bio}</p>
+          </div>
+        `;
+        if (isTop) setupSwipe(card);
+        stack.appendChild(card);
+      });
+    }
+
+    function setupSwipe(card) {
+      let startX = 0, currentX = 0, isDragging = false;
+      const onStart = (e) => {
+        isDragging = true;
+        startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+        card.classList.add('dragging');
+      };
+      const onMove = (e) => {
+        if (!isDragging) return;
+        currentX = (e.type === 'touchmove' ? e.touches[0].clientX : e.clientX) - startX;
+        card.style.transform = `translateX(${currentX}px) rotate(${currentX * 0.08}deg)`;
+        const likeEl = card.querySelector('.swipe-indicator.like');
+        const passEl = card.querySelector('.swipe-indicator.pass');
+        likeEl.style.opacity = Math.min(currentX / 80, 1);
+        passEl.style.opacity = Math.min(-currentX / 80, 1);
+      };
+      const onEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        card.classList.remove('dragging');
+        if (currentX > 100) { likeCard(); }
+        else if (currentX < -100) { passCard(); }
+        else {
+          card.style.transform = '';
+          card.querySelector('.swipe-indicator.like').style.opacity = 0;
+          card.querySelector('.swipe-indicator.pass').style.opacity = 0;
+        }
+        currentX = 0;
+      };
+      card.addEventListener('mousedown', onStart);
+      card.addEventListener('mousemove', onMove);
+      card.addEventListener('mouseup', onEnd);
+      card.addEventListener('mouseleave', onEnd);
+      card.addEventListener('touchstart', onStart, { passive: true });
+      card.addEventListener('touchmove', onMove, { passive: true });
+      card.addEventListener('touchend', onEnd);
+    }
+
+    async function likeCard() {
+      if (state.cardIndex >= state.profiles.length) return;
+      const profile = state.profiles[state.cardIndex];
+      state.cardIndex++;
+      // Animate card out to the right
+      const topCard = $('card-stack').querySelector('.match-card:last-child');
+      if (topCard) {
+        topCard.style.transform = 'translateX(120%) rotate(20deg)';
+        topCard.style.opacity = '0';
+      }
+      // Simulate match (in demo: 60% match rate)
+      const isMatch = state.mode === 'demo' ? Math.random() < 0.6 : await checkLiveMatch(profile);
+      if (isMatch) {
+        state.matches.push(profile);
+        state.conversations[profile.id] = state.mode === 'demo' ? generateDemoMessages(profile) : [];
+        setTimeout(() => showMatchModal(profile), 400);
+      }
+      if (state.mode === 'live') {
+        await state.supabase.from('swipes').insert({ swiper_id: state.user.id, swiped_id: profile.id, direction: 'like' });
+      }
+      setTimeout(renderCards, 400);
+    }
+
+    async function passCard() {
+      if (state.cardIndex >= state.profiles.length) return;
+      const profile = state.profiles[state.cardIndex];
+      state.cardIndex++;
+      const topCard = $('card-stack').querySelector('.match-card:last-child');
+      if (topCard) {
+        topCard.style.transform = 'translateX(-120%) rotate(-20deg)';
+        topCard.style.opacity = '0';
+      }
+      if (state.mode === 'live') {
+        await state.supabase.from('swipes').insert({ swiper_id: state.user.id, swiped_id: profile.id, direction: 'pass' });
+      }
+      setTimeout(renderCards, 400);
+    }
+
+    async function checkLiveMatch(profile) {
+      if (!state.supabase) return false;
+      const { data } = await state.supabase
+        .from('swipes')
+        .select('id')
+        .eq('swiper_id', profile.id)
+        .eq('swiped_id', state.user.id)
+        .eq('direction', 'like')
+        .single();
+      if (data) {
+        await state.supabase.from('matches').insert({ user1_id: state.user.id, user2_id: profile.id });
+        return true;
+      }
+      return false;
+    }
+
+    function generateDemoMessages(profile) {
+      const msgs = [
+        { from: profile.id, text: `Hey! I see you play ${profile.sports[0]} too. Want to hit sometime?`, time: new Date(Date.now() - 3600000).toISOString() },
+        { from: 'demo-user', text: `Definitely! I usually play on weekends. What's your schedule like?`, time: new Date(Date.now() - 3000000).toISOString() },
+        { from: profile.id, text: `Weekends work great! Saturday mornings are my go-to.`, time: new Date(Date.now() - 2400000).toISOString() },
+      ];
+      return msgs;
+    }
+
+    function showMatchModal(profile) {
+      $('modal-avatar-me').innerHTML = state.user.avatar || '&#11088;';
+      $('modal-avatar-them').innerHTML = profile.avatar || randomAvatar();
+      $('modal-match-text').innerHTML = `You and <strong>${profile.name}</strong> both want to play!`;
+      state._lastMatchedProfile = profile;
+      $('match-modal').classList.add('active');
+    }
+
+    function closeMatchModal() {
+      $('match-modal').classList.remove('active');
+    }
+
+    function startChatFromMatch() {
+      closeMatchModal();
+      if (state._lastMatchedProfile) {
+        openChat(state._lastMatchedProfile.id);
+      }
+    }
+
+    function showFilters() {
+      showToast('Filters coming soon!');
+    }
+    // ========== CHAT ==========
+    function renderMatchesList() {
+      const list = $('matches-list');
+      if (state.matches.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128172;</div><h3>No matches yet</h3><p>Start swiping to find playing partners!</p></div>';
+        return;
+      }
+      list.innerHTML = state.matches.map(m => {
+        const msgs = state.conversations[m.id] || [];
+        const last = msgs[msgs.length - 1];
+        const preview = last ? last.text : 'Say hello!';
+        const time = last ? timeAgo(last.time) : '';
+        return `<div class="match-item" onclick="openChat('${m.id}')">
+          <div class="avatar">${m.avatar || randomAvatar()}</div>
+          <div class="match-info">
+            <div class="match-name">${m.name}</div>
+            <div class="match-preview">${preview}</div>
+          </div>
+          <span class="match-time">${time}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function openChat(matchId) {
+      const profile = state.matches.find(m => m.id === matchId);
+      if (!profile) return;
+      state.currentChat = matchId;
+      $('chat-avatar').innerHTML = profile.avatar || randomAvatar();
+      $('chat-name').textContent = profile.name;
+      renderMessages();
+      showScreen('chat');
+      // Subscribe to realtime in live mode
+      if (state.mode === 'live' && state.supabase) {
+        subscribeToChat(matchId);
+      }
+    }
+
+    function renderMessages() {
+      const container = $('chat-messages');
+      const msgs = state.conversations[state.currentChat] || [];
+      container.innerHTML = msgs.map(m => {
+        const isSent = m.from === state.user.id;
+        return `<div class="message ${isSent ? 'sent' : 'received'}">
+          ${m.text}
+          <span class="msg-time">${timeAgo(m.time)}</span>
+        </div>`;
+      }).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = $('chat-input');
+      const text = input.value.trim();
+      if (!text || !state.currentChat) return;
+      input.value = '';
+
+      const msg = { from: state.user.id, text, time: new Date().toISOString() };
+
+      if (!state.conversations[state.currentChat]) {
+        state.conversations[state.currentChat] = [];
+      }
+      state.conversations[state.currentChat].push(msg);
+      renderMessages();
+
+      if (state.mode === 'live' && state.supabase) {
+        await state.supabase.from('messages').insert({
+          match_id: state.currentChat,
+          sender_id: state.user.id,
+          content: text
+        });
+      } else if (state.mode === 'demo') {
+        // Simulate reply in demo mode
+        setTimeout(() => {
+          const profile = state.matches.find(m => m.id === state.currentChat);
+          if (!profile) return;
+          const replies = [
+            `Sounds great! See you on the court!`,
+            `I'm free this weekend, let's do it!`,
+            `Awesome, I'll bring an extra racket just in case.`,
+            `Perfect, looking forward to it!`,
+            `Let me check my schedule and get back to you.`,
+            `I know a great spot we can play at!`
+          ];
+          const reply = { from: profile.id, text: replies[Math.floor(Math.random() * replies.length)], time: new Date().toISOString() };
+          state.conversations[state.currentChat].push(reply);
+          if (state.currentChat === profile.id) renderMessages();
+        }, 1000 + Math.random() * 2000);
+      }
+    }
+
+    function subscribeToChat(matchId) {
+      if (!state.supabase) return;
+      state.supabase
+        .channel('chat-' + matchId)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` }, (payload) => {
+          const row = payload.new;
+          if (row.sender_id !== state.user.id) {
+            state.conversations[matchId] = state.conversations[matchId] || [];
+            state.conversations[matchId].push({ from: row.sender_id, text: row.content, time: row.created_at });
+            if (state.currentChat === matchId) renderMessages();
+          }
+        })
+        .subscribe();
+    }
+    // ========== NAVIGATION & SCREENS ==========
+    function showScreen(name) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      const el = $(name + '-screen');
+      if (el) el.classList.add('active');
+      // Update nav
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.screen === name);
+      });
+      // Hide nav on auth/setup/chat screens
+      const hideNav = ['auth', 'setup', 'chat'].includes(name);
+      $('bottom-nav').style.display = hideNav ? 'none' : 'flex';
+    }
+
+    function navigateTo(screen) {
+      if (screen === 'discover') {
+        renderCards();
+      } else if (screen === 'matches') {
+        renderMatchesList();
+      } else if (screen === 'profile') {
+        renderProfile();
+      }
+      showScreen(screen);
+    }
+
+    function showApp() {
+      renderCards();
+      renderProfile();
+      showScreen('discover');
+    }
+
+    // ========== PROFILE ==========
+    function renderSportTags() {
+      const container = $('sport-tags');
+      container.innerHTML = SPORTS.map(s =>
+        `<div class="sport-tag" data-sport="${s}" onclick="toggleSport(this)">${s}</div>`
+      ).join('');
+    }
+
+    function toggleSport(el) {
+      el.classList.toggle('selected');
+    }
+
+    async function saveProfile() {
+      const name = $('setup-name').value.trim();
+      const age = parseInt($('setup-age').value);
+      const location = $('setup-location').value.trim();
+      const skill = $('setup-skill').value;
+      const bio = $('setup-bio').value.trim();
+      const sports = Array.from(document.querySelectorAll('.sport-tag.selected')).map(el => el.dataset.sport);
+
+      if (!name) { showToast('Please enter your name'); return; }
+      if (!age || age < 16) { showToast('Please enter a valid age'); return; }
+      if (sports.length === 0) { showToast('Select at least one sport'); return; }
+
+      state.user = { ...state.user, name, age, location, skill, bio, sports, avatar: randomAvatar() };
+
+      if (state.mode === 'live' && state.supabase) {
+        await state.supabase.from('profiles').upsert({
+          id: state.user.id,
+          name, age, location, skill, bio, sports, avatar: state.user.avatar
+        });
+        await loadLiveData();
+      }
+
+      showApp();
+    }
+
+    function renderProfile() {
+      if (!state.user) return;
+      $('profile-avatar').innerHTML = state.user.avatar || '&#11088;';
+      $('profile-name').textContent = state.user.name;
+      $('profile-meta').textContent = `${state.user.age || ''} · ${state.user.location || ''} · ${state.user.skill || ''}`;
+      $('stat-matches').textContent = state.matches.length;
+      $('stat-played').textContent = '0';
+      $('stat-sports').textContent = (state.user.sports || []).length;
+    }
+
+    function editProfile() {
+      $('setup-name').value = state.user.name || '';
+      $('setup-age').value = state.user.age || '';
+      $('setup-location').value = state.user.location || '';
+      $('setup-skill').value = state.user.skill || 'intermediate';
+      $('setup-bio').value = state.user.bio || '';
+      renderSportTags();
+      (state.user.sports || []).forEach(s => {
+        const tag = document.querySelector(`.sport-tag[data-sport="${s}"]`);
+        if (tag) tag.classList.add('selected');
+      });
+      showScreen('setup');
+    }
+
+    function pickAvatar() {
+      showToast('Avatar upload coming soon!');
+    }
+
+    // ========== LIVE DATA ==========
+    async function loadLiveData() {
+      if (!state.supabase) return;
+      // Load profiles (exclude self and already-swiped)
+      const { data: swiped } = await state.supabase
+        .from('swipes')
+        .select('swiped_id')
+        .eq('swiper_id', state.user.id);
+      const swipedIds = (swiped || []).map(s => s.swiped_id);
+      swipedIds.push(state.user.id);
+
+      const { data: profiles } = await state.supabase
+        .from('profiles')
+        .select('*')
+        .not('id', 'in', `(${swipedIds.join(',')})`);
+      state.profiles = profiles || [];
+      state.cardIndex = 0;
+
+      // Load matches
+      const { data: matches } = await state.supabase
+        .from('matches')
+        .select('*, user1:profiles!user1_id(*), user2:profiles!user2_id(*)')
+        .or(`user1_id.eq.${state.user.id},user2_id.eq.${state.user.id}`);
+      state.matches = (matches || []).map(m => {
+        const other = m.user1_id === state.user.id ? m.user2 : m.user1;
+        return { ...other, matchId: m.id };
+      });
+
+      // Load conversations for each match
+      for (const m of state.matches) {
+        const { data: msgs } = await state.supabase
+          .from('messages')
+          .select('*')
+          .eq('match_id', m.matchId)
+          .order('created_at', { ascending: true });
+        state.conversations[m.id] = (msgs || []).map(msg => ({
+          from: msg.sender_id,
+          text: msg.content,
+          time: msg.created_at
+        }));
+      }
+    }
+
+    // ========== INIT ==========
+    function init() {
+      renderSportTags();
+      // Try to init Supabase
+      if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
+        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // Check existing session
+        state.supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            state.mode = 'live';
+            state.user = { id: session.user.id, email: session.user.email };
+            state.supabase.from('profiles').select('*').eq('id', state.user.id).single().then(({ data }) => {
+              if (data && data.name) {
+                state.user = { ...state.user, ...data };
+                loadLiveData().then(showApp);
+              } else {
+                showScreen('setup');
+              }
+            });
+          }
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+
+<!-- SUPABASE SCHEMA — Copy & run in Supabase SQL Editor
+
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- Profiles table
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text not null,
+  age int,
+  location text,
+  skill text check (skill in ('beginner','intermediate','advanced','pro')),
+  sports text[] default '{}',
+  bio text,
+  avatar text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Swipes table
+create table if not exists swipes (
+  id uuid primary key default uuid_generate_v4(),
+  swiper_id uuid references profiles(id) on delete cascade,
+  swiped_id uuid references profiles(id) on delete cascade,
+  direction text check (direction in ('like','pass')),
+  created_at timestamptz default now(),
+  unique(swiper_id, swiped_id)
+);
+
+-- Matches table
+create table if not exists matches (
+  id uuid primary key default uuid_generate_v4(),
+  user1_id uuid references profiles(id) on delete cascade,
+  user2_id uuid references profiles(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique(user1_id, user2_id)
+);
+
+-- Messages table
+create table if not exists messages (
+  id uuid primary key default uuid_generate_v4(),
+  match_id uuid references matches(id) on delete cascade,
+  sender_id uuid references profiles(id) on delete cascade,
+  content text not null,
+  created_at timestamptz default now()
+);
+
+-- Indexes
+create index if not exists idx_swipes_swiper on swipes(swiper_id);
+create index if not exists idx_swipes_swiped on swipes(swiped_id);
+create index if not exists idx_matches_user1 on matches(user1_id);
+create index if not exists idx_matches_user2 on matches(user2_id);
+create index if not exists idx_messages_match on messages(match_id);
+
+-- RLS policies
+alter table profiles enable row level security;
+alter table swipes enable row level security;
+alter table matches enable row level security;
+alter table messages enable row level security;
+
+-- Profiles: users can read all, update own
+create policy "Profiles readable by all" on profiles for select using (true);
+create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
+create policy "Users can insert own profile" on profiles for insert with check (auth.uid() = id);
+
+-- Swipes: users can insert own, read own
+create policy "Users can insert own swipes" on swipes for insert with check (auth.uid() = swiper_id);
+create policy "Users can read own swipes" on swipes for select using (auth.uid() = swiper_id or auth.uid() = swiped_id);
+
+-- Matches: users can read own matches
+create policy "Users can read own matches" on matches for select using (auth.uid() = user1_id or auth.uid() = user2_id);
+create policy "Users can insert matches" on matches for insert with check (auth.uid() = user1_id or auth.uid() = user2_id);
+
+-- Messages: users can read/insert messages in their matches
+create policy "Users can read match messages" on messages for select using (
+  exists (select 1 from matches where matches.id = messages.match_id and (matches.user1_id = auth.uid() or matches.user2_id = auth.uid()))
+);
+create policy "Users can send match messages" on messages for insert with check (
+  auth.uid() = sender_id and
+  exists (select 1 from matches where matches.id = messages.match_id and (matches.user1_id = auth.uid() or matches.user2_id = auth.uid()))
+);
+
+-- Enable Realtime on messages
+alter publication supabase_realtime add table messages;
+
+END SUPABASE SCHEMA -->
+</html>
