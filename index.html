@@ -1311,12 +1311,8 @@
         </div>
         <div class="sg-section">
           <div class="sg-section-title">Tees</div>
-          <select id="sg-tees" class="input">
-            <option value="white">White</option>
-            <option value="blue">Blue</option>
-            <option value="red">Red</option>
-            <option value="gold">Gold</option>
-            <option value="black">Black</option>
+          <select id="sg-tees" class="input" disabled>
+            <option value="">Select a course first</option>
           </select>
         </div>
         <div class="sg-section">
@@ -1405,7 +1401,7 @@
         </div>
         <div class="input-group">
           <label>Course Played</label>
-          <select id="score-course" class="input">
+          <select id="score-course" class="input" onchange="populateTeesDropdown('score-tees', this.value)">
             <option value="">Select a course...</option>
           </select>
         </div>
@@ -1415,12 +1411,8 @@
         </div>
         <div class="input-group">
           <label>Tees</label>
-          <select id="score-tees" class="input">
-            <option value="white">White</option>
-            <option value="blue">Blue</option>
-            <option value="red">Red</option>
-            <option value="gold">Gold</option>
-            <option value="black">Black</option>
+          <select id="score-tees" class="input" disabled>
+            <option value="">Select a course first</option>
           </select>
         </div>
         <div class="score-row">
@@ -3158,8 +3150,68 @@
       document.querySelectorAll('.sg-mode-btn[data-holes]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.holes) === n));
     }
 
+    // Course-specific tee data — generates realistic tees based on course characteristics
+    function getCourseTees(courseName) {
+      // Seed a simple hash from the course name for deterministic tee assignment
+      let hash = 0;
+      for (let i = 0; i < courseName.length; i++) hash = ((hash << 5) - hash) + courseName.charCodeAt(i);
+      hash = Math.abs(hash);
+
+      // All courses have white tees; build set based on course type
+      const coords = getUserCoords();
+      const venues = coords ? getDemoVenues(coords, 200).filter(v => v.type === 'course') : [];
+      const venue = venues.find(v => v.name === courseName);
+      const isPrivate = venue ? venue.isPrivate : false;
+
+      // Base tees with yardages (par-72 course total)
+      const allTees = [
+        { id: 'red', label: 'Red', yards: 4800 + (hash % 400) },
+        { id: 'white', label: 'White', yards: 5800 + (hash % 500) },
+        { id: 'yellow', label: 'Yellow', yards: 6000 + (hash % 400) },
+        { id: 'blue', label: 'Blue', yards: 6400 + (hash % 500) },
+        { id: 'gold', label: 'Gold / Championship', yards: 6800 + (hash % 400) },
+        { id: 'black', label: 'Black / Tips', yards: 7100 + (hash % 400) }
+      ];
+
+      // Municipal/public courses: red, white, blue (sometimes yellow)
+      // Semi-private: red, white, yellow, blue, gold
+      // Private: all tees
+      let available;
+      if (isPrivate) {
+        available = allTees;
+      } else if (hash % 3 === 0) {
+        // Public with 4 tees
+        available = allTees.filter(t => ['red', 'white', 'blue', 'gold'].includes(t.id));
+      } else if (hash % 3 === 1) {
+        // Public with 3 tees + yellow
+        available = allTees.filter(t => ['red', 'white', 'yellow', 'blue'].includes(t.id));
+      } else {
+        // Public standard
+        available = allTees.filter(t => ['red', 'white', 'blue'].includes(t.id));
+      }
+      return available;
+    }
+
+    function populateTeesDropdown(selectId, courseName) {
+      const teeSelect = $(selectId);
+      if (!courseName) {
+        teeSelect.innerHTML = '<option value="">Select a course first</option>';
+        teeSelect.disabled = true;
+        return;
+      }
+      const tees = getCourseTees(courseName);
+      teeSelect.innerHTML = '';
+      tees.forEach(t => {
+        teeSelect.innerHTML += `<option value="${t.id}">${t.label} (${t.yards.toLocaleString()} yds)</option>`;
+      });
+      // Default to white
+      teeSelect.value = 'white';
+      teeSelect.disabled = false;
+    }
+
     function onSgCourseChange() {
-      // Future: could load course-specific data
+      const courseName = $('sg-course').value;
+      populateTeesDropdown('sg-tees', courseName);
     }
 
     function startGame() {
