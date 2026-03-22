@@ -3281,14 +3281,13 @@
       const venue = venues.find(v => v.name === courseName);
       const isPrivate = venue ? venue.isPrivate : false;
 
-      // Base tees with yardages (par-72 course total)
       const allTees = [
-        { id: 'red', label: 'Red', yards: 4800 + (hash % 400) },
-        { id: 'white', label: 'White', yards: 5800 + (hash % 500) },
-        { id: 'yellow', label: 'Yellow', yards: 6000 + (hash % 400) },
-        { id: 'blue', label: 'Blue', yards: 6400 + (hash % 500) },
-        { id: 'gold', label: 'Gold / Championship', yards: 6800 + (hash % 400) },
-        { id: 'black', label: 'Black / Tips', yards: 7100 + (hash % 400) }
+        { id: 'red', label: 'Red' },
+        { id: 'white', label: 'White' },
+        { id: 'yellow', label: 'Yellow' },
+        { id: 'blue', label: 'Blue' },
+        { id: 'gold', label: 'Gold / Championship' },
+        { id: 'black', label: 'Black / Tips' }
       ];
 
       // Municipal/public courses: red, white, blue (sometimes yellow)
@@ -3452,7 +3451,7 @@
       // Legacy — no longer used for dropdown, kept for compatibility
     }
 
-    function startGame() {
+    async function startGame() {
       if (sgSelectedPlayers.length === 0) { showToast('Select at least one opponent'); return; }
       const clubName = $('sg-course').value;
       if (!clubName) { showToast('Select a course'); return; }
@@ -3468,10 +3467,14 @@
       const courseName = subCourse ? `${clubName} - ${subCourse}` : clubName;
       const tees = $('sg-tees').value;
 
-      // Get course coords from hidden input dataset
+      // Get course coords — use sub-course coords if available
       const courseEl = $('sg-course');
-      const courseLat = parseFloat(courseEl.dataset.lat) || 0;
-      const courseLng = parseFloat(courseEl.dataset.lng) || 0;
+      let courseLat = parseFloat(courseEl.dataset.lat) || 0;
+      let courseLng = parseFloat(courseEl.dataset.lng) || 0;
+      if (subCourse && venue && venue.courses) {
+        const subVenue = venue.courses.find(c => c.name === subCourse);
+        if (subVenue) { courseLat = subVenue.lat; courseLng = subVenue.lng; }
+      }
 
       // Build players array (current user first)
       const players = [{
@@ -3484,8 +3487,22 @@
         if (m) players.push({ id: m.id, name: m.name, avatar: m.avatar || '&#9971;' });
       });
 
-      // Generate hole data for the course
-      const holeData = generateHoleData(sgHoles, courseLat, courseLng);
+      // Show loading state
+      const startBtn = document.querySelector('#start-game-screen .btn-primary');
+      const origText = startBtn.textContent;
+      startBtn.textContent = 'Loading course data...';
+      startBtn.disabled = true;
+
+      // Fetch real hole data from OpenStreetMap
+      let holeData = await fetchCourseHoleData(courseLat, courseLng, sgHoles, tees);
+
+      startBtn.textContent = origText;
+      startBtn.disabled = false;
+
+      if (!holeData) {
+        showToast('Course hole data not available in OpenStreetMap. This course may not have detailed hole mapping yet.');
+        return;
+      }
 
       // Init scores
       const scores = {};
@@ -3516,33 +3533,163 @@
       renderLiveGame();
     }
 
-    // Generate realistic hole data for a course
-    function generateHoleData(numHoles, baseLat, baseLng) {
-      const parSequences18 = [4,3,5,4,4,3,4,5,4, 4,5,3,4,4,5,3,4,4];
-      const parSequences9 = [4,3,5,4,4,3,4,5,4];
-      const pars = numHoles === 18 ? parSequences18 : parSequences9;
+    // Cache for fetched course hole data so we don't re-query
+    const courseHoleCache = {};
 
-      const yardsByPar = { 3: [135,150,165,175,185,195], 4: [320,350,375,385,400,420], 5: [480,500,520,540,560] };
-      const holes = [];
-
-      for (let i = 0; i < numHoles; i++) {
-        const par = pars[i];
-        const yardsArr = yardsByPar[par];
-        const yards = yardsArr[Math.floor(Math.random() * yardsArr.length)];
-        // Generate hole positions radiating from course center
-        const angle = (i / numHoles) * Math.PI * 2 + (Math.random() * 0.3 - 0.15);
-        const dist = 0.003 + Math.random() * 0.005; // ~300-800m from center
-        const teeLat = baseLat + Math.cos(angle) * dist;
-        const teeLng = baseLng + Math.sin(angle) * dist;
-        // Green is at the "end" of the hole
-        const holeAngle = angle + (Math.random() * 0.4 - 0.2);
-        const holeDist = yards * 0.000009; // rough yards-to-degrees
-        const greenLat = teeLat + Math.cos(holeAngle) * holeDist;
-        const greenLng = teeLng + Math.sin(holeAngle) * holeDist;
-
-        holes.push({ hole: i + 1, par, yards, teeLat, teeLng, greenLat, greenLng });
+    // Fetch real hole data from OpenStreetMap via Overpass API
+    async function fetchCourseHoleData(courseLat, courseLng, numHoles, teeColor) {
+      const cacheKey = `${courseLat.toFixed(4)},${courseLng.toFixed(4)},${numHoles}`;
+      if (courseHoleCache[cacheKey]) {
+        return applyTeeScaling(courseHoleCache[cacheKey], teeColor);
       }
-      return holes;
+
+      // Query Overpass for golf hole ways near the course
+      // golf=hole ways have geometry from tee to green, with ref/par tags
+      const query = `[out:json][timeout:20];(
+        way["golf"="hole"](around:3000,${courseLat},${courseLng});
+      );out geom tags;`;
+
+      try {
+        const resp = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(query)
+        });
+        if (!resp.ok) throw new Error('Overpass API error');
+        const data = await resp.json();
+
+        if (!data.elements || data.elements.length === 0) {
+          throw new Error('No hole data found');
+        }
+
+        // Parse hole ways into structured data
+        const rawHoles = data.elements
+          .filter(el => el.geometry && el.geometry.length >= 2 && el.tags)
+          .map(el => {
+            const geom = el.geometry;
+            const teeLat = geom[0].lat;
+            const teeLng = geom[0].lon;
+            const greenLat = geom[geom.length - 1].lat;
+            const greenLng = geom[geom.length - 1].lon;
+
+            // Calculate yardage from way geometry (sum of all segments)
+            let totalMeters = 0;
+            for (let i = 1; i < geom.length; i++) {
+              totalMeters += haversineKm(geom[i-1].lat, geom[i-1].lon, geom[i].lat, geom[i].lon) * 1000;
+            }
+            const yards = Math.round(totalMeters * 1.09361);
+
+            const ref = parseInt(el.tags.ref) || 0;
+            const par = parseInt(el.tags.par) || estimateParFromYards(yards);
+            const handicap = parseInt(el.tags.handicap) || null;
+
+            return { hole: ref, par, yards, teeLat, teeLng, greenLat, greenLng, handicap };
+          })
+          .filter(h => h.hole > 0); // Only keep holes with valid ref numbers
+
+        if (rawHoles.length === 0) throw new Error('No valid hole data');
+
+        // For multi-course facilities, we may pick up holes from multiple courses.
+        // If we have duplicate hole numbers (e.g., two "hole 1"s from two courses),
+        // pick the set closest to our query coordinates.
+        const holeCounts = {};
+        rawHoles.forEach(h => { holeCounts[h.hole] = (holeCounts[h.hole] || 0) + 1; });
+        const hasDuplicates = Object.values(holeCounts).some(c => c > 1);
+
+        if (hasDuplicates) {
+          // Group holes by their ref number, pick the one closest to the course center
+          const deduped = [];
+          const byRef = {};
+          rawHoles.forEach(h => {
+            if (!byRef[h.hole]) byRef[h.hole] = [];
+            byRef[h.hole].push(h);
+          });
+          Object.values(byRef).forEach(group => {
+            // Pick the hole whose tee is closest to courseLat/courseLng
+            group.sort((a, b) => {
+              const da = haversineKm(courseLat, courseLng, a.teeLat, a.teeLng);
+              const db = haversineKm(courseLat, courseLng, b.teeLat, b.teeLng);
+              return da - db;
+            });
+            deduped.push(group[0]);
+          });
+          rawHoles.length = 0;
+          rawHoles.push(...deduped);
+        }
+
+        // Sort by hole number
+        rawHoles.sort((a, b) => a.hole - b.hole);
+
+        // For 18-hole courses, take holes 1-18; for 9-hole, take 1-9
+        let holes;
+        if (numHoles === 9) {
+          // Prefer holes 1-9 (front nine)
+          holes = rawHoles.filter(h => h.hole >= 1 && h.hole <= 9);
+          if (holes.length < 7) {
+            // Maybe hole numbers are 10-18 (back nine course)
+            holes = rawHoles.filter(h => h.hole >= 10 && h.hole <= 18);
+            holes = holes.map((h, i) => ({ ...h, hole: i + 1 }));
+          }
+          if (holes.length < 7) {
+            holes = rawHoles.slice(0, numHoles).map((h, i) => ({ ...h, hole: i + 1 }));
+          }
+        } else {
+          // 18 holes
+          holes = rawHoles.filter(h => h.hole >= 1 && h.hole <= 18);
+          if (holes.length < 14) {
+            holes = rawHoles.slice(0, numHoles).map((h, i) => ({ ...h, hole: i + 1 }));
+          }
+        }
+
+        // Ensure we have the right count (pad if needed, but shouldn't normally happen)
+        while (holes.length < numHoles) {
+          const lastHole = holes[holes.length - 1];
+          holes.push({ hole: holes.length + 1, par: 4, yards: 350,
+            teeLat: lastHole.greenLat, teeLng: lastHole.greenLng,
+            greenLat: lastHole.greenLat + 0.002, greenLng: lastHole.greenLng + 0.001,
+            handicap: null });
+        }
+        holes = holes.slice(0, numHoles);
+
+        // Cache the base (championship) data
+        courseHoleCache[cacheKey] = holes;
+
+        return applyTeeScaling(holes, teeColor);
+      } catch (e) {
+        console.warn('Could not fetch OSM hole data:', e.message);
+        return null; // Caller should handle this
+      }
+    }
+
+    // Estimate par from yardage when OSM doesn't have par tag
+    function estimateParFromYards(yards) {
+      if (yards <= 250) return 3;
+      if (yards <= 470) return 4;
+      return 5;
+    }
+
+    // Scale yardage based on selected tee color
+    // Championship/back tees = 100% of OSM distance, forward tees = proportionally less
+    function applyTeeScaling(holes, teeColor) {
+      const teeFactors = {
+        'black': 1.0,
+        'gold': 0.95,
+        'blue': 0.92,
+        'yellow': 0.88,
+        'white': 0.85,
+        'red': 0.75
+      };
+      const factor = teeFactors[teeColor] || 0.85;
+      if (factor === 1.0) return holes.map(h => ({ ...h }));
+      return holes.map(h => {
+        // Scale yardage; tee position moves forward along the tee-to-green line
+        const scaledYards = Math.round(h.yards * factor);
+        // Move tee position proportionally closer to green
+        const shift = 1 - factor;
+        const teeLat = h.teeLat + (h.greenLat - h.teeLat) * shift;
+        const teeLng = h.teeLng + (h.greenLng - h.teeLng) * shift;
+        // Par can change for very short holes (e.g., a par-4 at 280 from forward tees might stay par 4)
+        return { ...h, yards: scaledYards, teeLat, teeLng };
+      });
     }
 
     // ---- Live Game Rendering ----
@@ -3891,8 +4038,8 @@
 
     function startGameGps() {
       if (!gameState) return;
-      // Set initial simulated position at tee box so map renders immediately
-      const hd = gameState.holeData[0];
+      // Set initial simulated position at current hole tee box so map renders immediately
+      const hd = gameState.holeData[gameState.currentHole - 1];
       currentGpsPos = {
         lat: hd.teeLat + (Math.random() - 0.5) * 0.0005,
         lng: hd.teeLng + (Math.random() - 0.5) * 0.0005,
