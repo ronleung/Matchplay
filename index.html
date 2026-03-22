@@ -390,6 +390,35 @@
       flex-shrink: 0;
     }
 
+    /* ---- Nav Badges ---- */
+    .nav-btn { position: relative; }
+    .nav-badge {
+      position: absolute;
+      top: 6px;
+      right: 50%;
+      margin-right: -18px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      animation: badgePop 0.3s ease;
+    }
+    .nav-badge:empty { display: none; }
+    @keyframes badgePop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
     /* ---- Chat Screen ---- */
     .chat-screen { padding: 0; }
     .chat-header {
@@ -1034,6 +1063,7 @@
       <button class="nav-btn" data-screen="matches" onclick="navigateTo('matches')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         Matches
+        <span class="nav-badge" id="matches-badge"></span>
       </button>
       <button class="nav-btn" data-screen="venues" onclick="navigateTo('venues')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -1510,6 +1540,7 @@
       if (isMatch) {
         state.matches.push(profile);
         state.conversations[profile.id] = state.mode === 'demo' ? generateDemoMessages(profile) : [];
+        notifyNewMatch(profile);
         setTimeout(() => showMatchModal(profile), 400);
       }
       if (state.mode === 'live') {
@@ -1820,9 +1851,15 @@
             `Let me check my schedule and get back to you.`,
             `I know a great course we should try — great condition right now!`
           ];
-          const reply = { from: profile.id, text: replies[Math.floor(Math.random() * replies.length)], time: new Date().toISOString() };
+          const replyText = replies[Math.floor(Math.random() * replies.length)];
+          const reply = { from: profile.id, text: replyText, time: new Date().toISOString() };
           state.conversations[state.currentChat].push(reply);
           if (state.currentChat === profile.id) renderMessages();
+          // Notify if not currently viewing this chat
+          const activeScreen = document.querySelector('.screen.active');
+          if (!activeScreen || activeScreen.id !== 'chat-screen' || state.currentChat !== profile.id) {
+            notifyNewMessage(profile.name, replyText, profile.id);
+          }
         }, 1000 + Math.random() * 2000);
       }
     }
@@ -1837,6 +1874,12 @@
             state.conversations[matchId] = state.conversations[matchId] || [];
             state.conversations[matchId].push({ from: row.sender_id, text: row.content, time: row.created_at });
             if (state.currentChat === matchId) renderMessages();
+            // Notify if not viewing this chat
+            const activeScreen = document.querySelector('.screen.active');
+            if (!activeScreen || activeScreen.id !== 'chat-screen' || state.currentChat !== matchId) {
+              const sender = state.matches.find(m => m.id === row.sender_id);
+              notifyNewMessage(sender ? sender.name : 'New message', row.content, matchId);
+            }
           }
         })
         .subscribe();
@@ -1859,6 +1902,7 @@
       if (screen === 'discover') {
         renderCards();
       } else if (screen === 'matches') {
+        clearMatchesBadge();
         renderMatchesList();
       } else if (screen === 'venues') {
         loadVenues();
@@ -1874,6 +1918,9 @@
       renderActiveFilterTags();
       renderProfile();
       showScreen('discover');
+      // Register service worker and request notification permission
+      registerServiceWorker();
+      requestNotificationPermission();
     }
 
     // ========== GEOLOCATION ==========
@@ -2301,16 +2348,132 @@
     function getDemoVenues(coords, radiusKm) {
       // Fallback demo venues for Ontario when Overpass API is unavailable
       const demoList = [
-        { name: 'Glen Abbey Golf Course', lat: 43.4514, lng: -79.7083, type: 'course', isPrivate: false, holes: '18' },
-        { name: 'Angus Glen Golf Club', lat: 43.8725, lng: -79.3150, type: 'course', isPrivate: false, holes: '36' },
-        { name: 'RattleSnake Point Golf Club', lat: 43.4700, lng: -79.8900, type: 'course', isPrivate: false, holes: '27' },
-        { name: 'St. George\'s Golf & Country Club', lat: 43.6550, lng: -79.5200, type: 'course', isPrivate: true, holes: '18' },
-        { name: 'Lionhead Golf Club', lat: 43.7100, lng: -79.7700, type: 'course', isPrivate: false, holes: '36' },
-        { name: 'Credit Valley Golf & Country Club', lat: 43.5650, lng: -79.6850, type: 'course', isPrivate: true, holes: '18' },
-        { name: 'Lakeview Golf Course', lat: 43.5800, lng: -79.5650, type: 'course', isPrivate: false, holes: '18' },
+        // === TORONTO MUNICIPAL COURSES (5) ===
         { name: 'Don Valley Golf Course', lat: 43.6950, lng: -79.3550, type: 'course', isPrivate: false, holes: '18' },
         { name: 'Humber Valley Golf Course', lat: 43.6600, lng: -79.5050, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Scarlett Woods Golf Course', lat: 43.6870, lng: -79.5100, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Dentonia Park Golf Course', lat: 43.6900, lng: -79.2930, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Tam O\'Shanter Golf Course', lat: 43.7580, lng: -79.2960, type: 'course', isPrivate: false, holes: '18' },
+
+        // === TORONTO PUBLIC / SEMI-PRIVATE (2) ===
+        { name: 'Royal Woodbine Golf Club', lat: 43.6530, lng: -79.5920, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Centennial Park Golf Centre', lat: 43.6480, lng: -79.5730, type: 'course', isPrivate: false, holes: '18' },
+
+        // === TORONTO PRIVATE CLUBS (11) ===
+        { name: 'St. George\'s Golf & Country Club', lat: 43.6747, lng: -79.5306, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Rosedale Golf Club', lat: 43.6920, lng: -79.3750, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Toronto Golf Club', lat: 43.5930, lng: -79.5540, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Lambton Golf & Country Club', lat: 43.6680, lng: -79.4870, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Scarboro Golf & Country Club', lat: 43.7220, lng: -79.2550, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Islington Golf Club', lat: 43.6370, lng: -79.5250, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Weston Golf & Country Club', lat: 43.7050, lng: -79.5150, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Donalda Club', lat: 43.7350, lng: -79.3350, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Oakdale Golf & Country Club', lat: 43.7330, lng: -79.4950, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Markland Wood Golf Club', lat: 43.6280, lng: -79.5650, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Toronto Hunt Club', lat: 43.6750, lng: -79.2430, type: 'course', isPrivate: true, holes: '9' },
+
+        // === MISSISSAUGA (4) ===
+        { name: 'Lakeview Golf Course', lat: 43.5880, lng: -79.5560, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'BraeBen Golf Course', lat: 43.5680, lng: -79.6530, type: 'course', isPrivate: false, holes: '27' },
+        { name: 'Credit Valley Golf & Country Club', lat: 43.5650, lng: -79.6850, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Mississaugua Golf & Country Club', lat: 43.5730, lng: -79.6200, type: 'course', isPrivate: true, holes: '18' },
+
+        // === BRAMPTON (5) ===
+        { name: 'Lionhead Golf Club', lat: 43.7100, lng: -79.7700, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Streetsville Glen Golf Club', lat: 43.7050, lng: -79.7550, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Peel Village Golf Course', lat: 43.7060, lng: -79.7340, type: 'course', isPrivate: false, holes: '9' },
+        { name: 'Turnberry Golf Club', lat: 43.7530, lng: -79.7970, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Brampton Golf Club', lat: 43.7270, lng: -79.7200, type: 'course', isPrivate: true, holes: '18' },
+
+        // === OAKVILLE (1) ===
+        { name: 'Glen Abbey Golf Course', lat: 43.4514, lng: -79.7083, type: 'course', isPrivate: false, holes: '18' },
+
+        // === BURLINGTON (5) ===
+        { name: 'Hidden Lake Golf Club', lat: 43.3730, lng: -79.8250, type: 'course', isPrivate: true, holes: '36' },
+        { name: 'Indian Wells Golf Club', lat: 43.3820, lng: -79.8420, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Crosswinds Golf & Country Club', lat: 43.3900, lng: -79.8670, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Tyandaga Golf Course', lat: 43.3530, lng: -79.8300, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Burlington Golf & Country Club', lat: 43.3270, lng: -79.7880, type: 'course', isPrivate: true, holes: '18' },
+
+        // === HAMILTON / ANCASTER / DUNDAS (2) ===
+        { name: 'Hamilton Golf & Country Club', lat: 43.2200, lng: -79.9950, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Dundas Valley Golf & Curling Club', lat: 43.2700, lng: -79.9700, type: 'course', isPrivate: true, holes: '27' },
+
+        // === MILTON / GEORGETOWN / HALTON HILLS (8) ===
+        { name: 'RattleSnake Point Golf Club', lat: 43.4700, lng: -79.8900, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Piper\'s Heath Golf Club', lat: 43.4870, lng: -79.8380, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Granite Ridge Golf Club', lat: 43.4620, lng: -79.8670, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Wyldewood Golf & Country Club', lat: 43.4900, lng: -79.8280, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Royal Ontario Golf Club', lat: 43.5080, lng: -79.8500, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Georgetown Golf Club', lat: 43.6500, lng: -79.9300, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Glencairn Golf Club', lat: 43.5500, lng: -79.9200, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'The Club at North Halton', lat: 43.6480, lng: -79.9250, type: 'course', isPrivate: true, holes: '18' },
+
+        // === CALEDON (3) ===
+        { name: 'TPC Toronto at Osprey Valley', lat: 43.8450, lng: -79.9650, type: 'course', isPrivate: false, holes: '54' },
+        { name: 'Devil\'s Pulpit Golf Association', lat: 43.8400, lng: -79.9600, type: 'course', isPrivate: true, holes: '36' },
+        { name: 'Caledon Woods Golf Club', lat: 43.8350, lng: -79.7550, type: 'course', isPrivate: true, holes: '18' },
+
+        // === VAUGHAN / KLEINBURG / WOODBRIDGE (3) ===
+        { name: 'The National Golf Club of Canada', lat: 43.7900, lng: -79.5750, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Eagles Nest Golf Club', lat: 43.8560, lng: -79.5040, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Copper Creek Golf Club', lat: 43.8250, lng: -79.5870, type: 'course', isPrivate: false, holes: '18' },
+
+        // === MARKHAM (3) ===
+        { name: 'Angus Glen Golf Club', lat: 43.8725, lng: -79.3150, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Remington Parkview Golf & Country Club', lat: 43.8170, lng: -79.2450, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Bushwood Golf Club', lat: 43.8750, lng: -79.2150, type: 'course', isPrivate: false, holes: '18' },
+
+        // === RICHMOND HILL (3) ===
+        { name: 'Richmond Hill Golf Club', lat: 43.8700, lng: -79.3800, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Summit Golf & Country Club', lat: 43.9200, lng: -79.4480, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'DiamondBack Golf Club', lat: 43.9150, lng: -79.3700, type: 'course', isPrivate: true, holes: '18' },
+
+        // === THORNHILL (3) ===
+        { name: 'Thornhill Golf & Country Club', lat: 43.8150, lng: -79.4430, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Ladies\' Golf Club of Toronto', lat: 43.8080, lng: -79.4420, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Maple Downs Golf & Country Club', lat: 43.8550, lng: -79.5000, type: 'course', isPrivate: true, holes: '18' },
+
+        // === KING CITY / KETTLEBY (3) ===
+        { name: 'King Valley Golf Club', lat: 43.9350, lng: -79.5350, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'King\'s Riding Golf Club', lat: 43.9280, lng: -79.5070, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Carrying Place Golf & Country Club', lat: 43.9750, lng: -79.5280, type: 'course', isPrivate: false, holes: '27' },
+
+        // === AURORA / NEWMARKET (4) ===
+        { name: 'Magna Golf Club', lat: 43.9700, lng: -79.3700, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Beacon Hall Golf Club', lat: 43.9630, lng: -79.4100, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'St. Andrew\'s Valley Golf Club', lat: 43.9750, lng: -79.4550, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Westview Golf Club', lat: 43.9600, lng: -79.4750, type: 'course', isPrivate: true, holes: '18' },
+
+        // === EAST GWILLIMBURY / SHARON (2) ===
+        { name: 'Pheasant Run Golf Club', lat: 44.0700, lng: -79.3600, type: 'course', isPrivate: false, holes: '27' },
+        { name: 'Silver Lakes Golf & Country Club', lat: 44.0800, lng: -79.4300, type: 'course', isPrivate: false, holes: '18' },
+
+        // === STOUFFVILLE / GORMLEY (5) ===
+        { name: 'Station Creek Golf Club', lat: 43.9200, lng: -79.3550, type: 'course', isPrivate: true, holes: '36' },
+        { name: 'Emerald Hills Golf Club', lat: 43.9350, lng: -79.2800, type: 'course', isPrivate: true, holes: '27' },
+        { name: 'Rolling Hills Golf Club', lat: 43.9250, lng: -79.2900, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Sleepy Hollow Country Club', lat: 43.9300, lng: -79.2700, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Meadowbrook Golf & Country Club', lat: 43.9100, lng: -79.3300, type: 'course', isPrivate: true, holes: '18' },
+
+        // === PICKERING / AJAX (3) ===
+        { name: 'Cherry Downs Golf Club', lat: 43.8700, lng: -79.1300, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Deer Creek Golf & Banquet Facility', lat: 43.8850, lng: -79.0550, type: 'course', isPrivate: false, holes: '36' },
+        { name: 'Pickering Glen Golf Club', lat: 43.8700, lng: -79.0600, type: 'course', isPrivate: false, holes: '9' },
+
+        // === WHITBY / OSHAWA / ASHBURN (2) ===
+        { name: 'Royal Ashburn Golf Club', lat: 43.9300, lng: -78.9750, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Oshawa Golf & Curling Club', lat: 43.8980, lng: -78.8600, type: 'course', isPrivate: true, holes: '18' },
+
+        // === UXBRIDGE / GOODWOOD (3) ===
+        { name: 'Wooden Sticks Golf Club', lat: 44.1050, lng: -79.1300, type: 'course', isPrivate: false, holes: '18' },
+        { name: 'Wyndance Golf Club', lat: 44.0800, lng: -79.1450, type: 'course', isPrivate: true, holes: '18' },
+        { name: 'Coppinwood Golf Club', lat: 44.0150, lng: -79.1200, type: 'course', isPrivate: true, holes: '18' },
+
+        // === OTHER ===
         { name: 'Mill Pond Golf Course', lat: 43.8900, lng: -79.4400, type: 'course', isPrivate: false, holes: '9' },
+
+        // === INDOOR SIMULATORS ===
         { name: 'Golf Town Indoor Simulator - Vaughan', lat: 43.8200, lng: -79.5300, type: 'simulator', isPrivate: false, holes: '' },
         { name: 'X-Golf Toronto', lat: 43.6550, lng: -79.3800, type: 'simulator', isPrivate: false, holes: '' },
         { name: 'Five Iron Golf - Toronto', lat: 43.6470, lng: -79.3900, type: 'simulator', isPrivate: false, holes: '' },
@@ -2362,6 +2525,98 @@
         }
         list.appendChild(card);
       });
+    }
+
+    // ========== NOTIFICATIONS & BADGES ==========
+    let unreadMatches = 0;
+    let unreadMessages = 0;
+
+    function updateBadge() {
+      const total = unreadMatches + unreadMessages;
+      const badge = $('matches-badge');
+      if (badge) {
+        badge.textContent = total > 0 ? (total > 99 ? '99+' : total) : '';
+      }
+      // Update app badge (if supported)
+      if ('setAppBadge' in navigator) {
+        if (total > 0) navigator.setAppBadge(total);
+        else navigator.clearAppBadge();
+      }
+    }
+
+    function notifyNewMatch(profile) {
+      unreadMatches++;
+      updateBadge();
+      sendNotification('New Match!', {
+        body: `You and ${profile.name} both want to play! Send them a message.`,
+        tag: 'match-' + profile.id,
+        icon: 'icons/icon.svg'
+      });
+    }
+
+    function notifyNewMessage(profileName, text, matchId) {
+      unreadMessages++;
+      updateBadge();
+      sendNotification(profileName, {
+        body: text,
+        tag: 'msg-' + matchId,
+        icon: 'icons/icon.svg'
+      });
+    }
+
+    function clearMatchesBadge() {
+      unreadMatches = 0;
+      unreadMessages = 0;
+      updateBadge();
+    }
+
+    // Push notification helpers
+    async function requestNotificationPermission() {
+      if (!('Notification' in window)) return 'unsupported';
+      if (Notification.permission === 'granted') return 'granted';
+      if (Notification.permission === 'denied') return 'denied';
+      const result = await Notification.requestPermission();
+      return result;
+    }
+
+    function sendNotification(title, options) {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      // If service worker is active, use it for background delivery
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification(title, {
+            ...options,
+            badge: 'icons/icon.svg',
+            vibrate: [200, 100, 200]
+          });
+        });
+      } else {
+        // Fallback to in-page notification
+        new Notification(title, options);
+      }
+    }
+
+    async function registerServiceWorker() {
+      if (!('serviceWorker' in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.register('sw.js');
+        // Listen for notification clicks
+        navigator.serviceWorker.addEventListener('message', e => {
+          if (e.data && e.data.type === 'notification-click') {
+            const tag = e.data.tag || '';
+            if (tag.startsWith('match-') || tag.startsWith('msg-')) {
+              const id = tag.split('-').slice(1).join('-');
+              if (state.matches.find(m => m.id === id)) {
+                openChat(id);
+              } else {
+                navigateTo('matches');
+              }
+            }
+          }
+        });
+      } catch (e) {
+        // SW registration failed — notifications still work in foreground
+      }
     }
 
     // ========== iOS HELPERS ==========
