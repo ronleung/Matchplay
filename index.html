@@ -486,6 +486,135 @@
     .settings-item span { font-size: 14px; }
     .settings-item .arrow { color: var(--text-muted); }
 
+    /* ---- Filter Panel ---- */
+    .filter-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 100;
+    }
+    .filter-overlay.active { display: flex; }
+    .filter-panel {
+      background: var(--bg-card);
+      border-radius: 20px 20px 0 0;
+      padding: 24px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 85vh;
+      overflow-y: auto;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .filter-panel h2 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .filter-panel h2 button {
+      background: none;
+      border: none;
+      color: var(--primary-light);
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .filter-section {
+      margin-bottom: 20px;
+    }
+    .filter-section label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .filter-section .range-display {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 600;
+      float: right;
+    }
+    .filter-section input[type="range"] {
+      width: 100%;
+      accent-color: var(--primary);
+      margin-top: 4px;
+    }
+    .gender-options {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .gender-option {
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: var(--bg-input);
+      border: 1.5px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .gender-option.selected {
+      border-color: var(--primary);
+      color: var(--primary-light);
+      background: rgba(99,102,241,0.15);
+    }
+    .skill-options {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .skill-option {
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: var(--bg-input);
+      border: 1.5px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .skill-option.selected {
+      border-color: var(--primary);
+      color: var(--primary-light);
+      background: rgba(99,102,241,0.15);
+    }
+    .filter-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .filter-actions .btn { flex: 1; }
+    .active-filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 0 20px 8px;
+    }
+    .active-filter-tag {
+      font-size: 11px;
+      padding: 4px 10px;
+      background: rgba(99,102,241,0.15);
+      color: var(--primary-light);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .active-filter-tag .remove-filter {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1;
+    }
+
     /* ---- Toast ---- */
     .toast {
       position: fixed;
@@ -558,8 +687,21 @@
         <input id="setup-age" class="input" type="number" placeholder="25" min="16" max="99">
       </div>
       <div class="input-group">
+        <label>Gender</label>
+        <select id="setup-gender" class="input">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="non-binary">Non-binary</option>
+          <option value="prefer-not">Prefer not to say</option>
+        </select>
+      </div>
+      <div class="input-group">
         <label>Location</label>
         <input id="setup-location" class="input" placeholder="City, State">
+      </div>
+      <div class="input-group">
+        <label>Handicap / Rating <span style="font-weight:400;color:var(--text-muted);">(optional, 0-54)</span></label>
+        <input id="setup-handicap" class="input" type="number" placeholder="e.g. 15" min="0" max="54">
       </div>
       <div class="input-group">
         <label>Skill Level</label>
@@ -591,6 +733,7 @@
           </button>
         </div>
       </div>
+      <div class="active-filters" id="active-filters"></div>
       <div class="card-stack" id="card-stack">
         <div class="empty-state" id="empty-state" style="display:none;">
           <div class="empty-icon">&#127934;</div>
@@ -664,6 +807,50 @@
     </nav>
   </div>
 
+  <!-- Filter Panel -->
+  <div class="filter-overlay" id="filter-overlay" onclick="if(event.target===this)closeFilters()">
+    <div class="filter-panel">
+      <h2>
+        Filters
+        <button onclick="resetFilters()">Reset</button>
+      </h2>
+      <div class="filter-section">
+        <label>Gender</label>
+        <div class="gender-options" id="filter-gender-options">
+          <div class="gender-option selected" data-value="all" onclick="toggleGenderFilter(this)">All</div>
+          <div class="gender-option" data-value="male" onclick="toggleGenderFilter(this)">Male</div>
+          <div class="gender-option" data-value="female" onclick="toggleGenderFilter(this)">Female</div>
+          <div class="gender-option" data-value="non-binary" onclick="toggleGenderFilter(this)">Non-binary</div>
+        </div>
+      </div>
+      <div class="filter-section">
+        <label>Handicap Range <span class="range-display" id="handicap-range-display">0 – 54</span></label>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <input type="range" id="filter-handicap-min" min="0" max="54" value="0" oninput="updateHandicapDisplay()">
+          <input type="range" id="filter-handicap-max" min="0" max="54" value="54" oninput="updateHandicapDisplay()">
+        </div>
+      </div>
+      <div class="filter-section">
+        <label>Max Distance <span class="range-display" id="distance-display">50 mi</span></label>
+        <input type="range" id="filter-distance" min="1" max="100" value="50" oninput="updateDistanceDisplay()">
+      </div>
+      <div class="filter-section">
+        <label>Skill Level</label>
+        <div class="skill-options" id="filter-skill-options">
+          <div class="skill-option selected" data-value="all" onclick="toggleSkillFilter(this)">All</div>
+          <div class="skill-option" data-value="beginner" onclick="toggleSkillFilter(this)">Beginner</div>
+          <div class="skill-option" data-value="intermediate" onclick="toggleSkillFilter(this)">Intermediate</div>
+          <div class="skill-option" data-value="advanced" onclick="toggleSkillFilter(this)">Advanced</div>
+          <div class="skill-option" data-value="pro" onclick="toggleSkillFilter(this)">Pro</div>
+        </div>
+      </div>
+      <div class="filter-actions">
+        <button class="btn btn-outline" onclick="closeFilters()">Cancel</button>
+        <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Match Modal -->
   <div class="modal-overlay" id="match-modal">
     <div class="modal">
@@ -701,31 +888,41 @@
       mode: null,        // 'demo' | 'live'
       user: null,        // current user profile
       authMode: 'signin', // 'signin' | 'signup'
-      profiles: [],      // browsable profiles
+      profiles: [],      // all browsable profiles (unfiltered)
+      filteredProfiles: [], // profiles after filters applied
       cardIndex: 0,
       matches: [],       // matched profiles
       conversations: {}, // matchId -> [messages]
       currentChat: null, // matchId for open chat
-      supabase: null
+      supabase: null,
+      filters: {
+        gender: 'all',
+        handicapMin: 0,
+        handicapMax: 54,
+        maxDistance: 50,
+        skill: 'all'
+      }
     };
 
     // ========== DEMO DATA ==========
     const DEMO_PROFILES = [
-      { id: 'd1', name: 'Alex Chen', age: 28, location: 'San Francisco, CA', skill: 'advanced', sports: ['Tennis','Pickleball','Running'], bio: 'NTRP 4.5 player, always looking for rallying partners. Also into pickleball on weekends!', avatar: '&#127934;' },
-      { id: 'd2', name: 'Jordan Lee', age: 25, location: 'San Francisco, CA', skill: 'intermediate', sports: ['Basketball','Soccer','Volleyball'], bio: 'Former college basketball player. I run pickup games every Saturday at Golden Gate Park.', avatar: '&#127936;' },
-      { id: 'd3', name: 'Sam Rivera', age: 32, location: 'Oakland, CA', skill: 'beginner', sports: ['Golf','Tennis','Cycling'], bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners.', avatar: '&#9971;' },
-      { id: 'd4', name: 'Casey Kim', age: 27, location: 'San Jose, CA', skill: 'pro', sports: ['Badminton','Table Tennis','Squash'], bio: 'Competitive badminton player. I train 5 days a week. Looking for serious hitting partners.', avatar: '&#127947;' },
-      { id: 'd5', name: 'Morgan Park', age: 30, location: 'Palo Alto, CA', skill: 'intermediate', sports: ['Rock Climbing','Yoga','CrossFit'], bio: 'Climbing V5-V6 range. I go to Planet Granite most evenings. Let\'s boulder together!', avatar: '&#129495;' },
-      { id: 'd6', name: 'Riley Davis', age: 24, location: 'Berkeley, CA', skill: 'intermediate', sports: ['Swimming','Running','Cycling'], bio: 'Training for my first triathlon. Would love training buddies who can push my pace!', avatar: '&#127946;' },
-      { id: 'd7', name: 'Taylor Nguyen', age: 29, location: 'San Francisco, CA', skill: 'advanced', sports: ['Tennis','Boxing','CrossFit'], bio: 'Former D3 tennis player. I also box at a local gym. Down for any competitive sport.', avatar: '&#129354;' },
-      { id: 'd8', name: 'Avery Singh', age: 26, location: 'Mountain View, CA', skill: 'beginner', sports: ['Pickleball','Volleyball','Yoga'], bio: 'New to pickleball and totally addicted! Chill vibes, just here to have fun and improve.', avatar: '&#127939;' }
+      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', location: 'San Francisco, CA', distance: 3, handicap: 8, skill: 'advanced', sports: ['Tennis','Pickleball','Running'], bio: 'NTRP 4.5 player, always looking for rallying partners. Also into pickleball on weekends!', avatar: '&#127934;' },
+      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', location: 'San Francisco, CA', distance: 5, handicap: 22, skill: 'intermediate', sports: ['Basketball','Soccer','Volleyball'], bio: 'Former college basketball player. I run pickup games every Saturday at Golden Gate Park.', avatar: '&#127936;' },
+      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', location: 'Oakland, CA', distance: 12, handicap: 36, skill: 'beginner', sports: ['Golf','Tennis','Cycling'], bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners.', avatar: '&#9971;' },
+      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', location: 'San Jose, CA', distance: 42, handicap: 2, skill: 'pro', sports: ['Badminton','Table Tennis','Squash'], bio: 'Competitive badminton player. I train 5 days a week. Looking for serious hitting partners.', avatar: '&#127947;' },
+      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', location: 'Palo Alto, CA', distance: 28, handicap: 18, skill: 'intermediate', sports: ['Rock Climbing','Yoga','CrossFit'], bio: 'Climbing V5-V6 range. I go to Planet Granite most evenings. Let\'s boulder together!', avatar: '&#129495;' },
+      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', location: 'Berkeley, CA', distance: 15, handicap: 25, skill: 'intermediate', sports: ['Swimming','Running','Cycling'], bio: 'Training for my first triathlon. Would love training buddies who can push my pace!', avatar: '&#127946;' },
+      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', location: 'San Francisco, CA', distance: 2, handicap: 5, skill: 'advanced', sports: ['Tennis','Boxing','CrossFit'], bio: 'Former D3 tennis player. I also box at a local gym. Down for any competitive sport.', avatar: '&#129354;' },
+      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', location: 'Mountain View, CA', distance: 35, handicap: 40, skill: 'beginner', sports: ['Pickleball','Volleyball','Yoga'], bio: 'New to pickleball and totally addicted! Chill vibes, just here to have fun and improve.', avatar: '&#127939;' }
     ];
 
     const DEMO_USER = {
       id: 'demo-user',
       name: 'You (Demo)',
       age: 27,
+      gender: 'male',
       location: 'San Francisco, CA',
+      handicap: 15,
       skill: 'intermediate',
       sports: ['Tennis', 'Pickleball', 'Running'],
       bio: 'Demo mode — explore the app!',
@@ -800,9 +997,11 @@
       state.mode = 'demo';
       state.user = { ...DEMO_USER };
       state.profiles = [...DEMO_PROFILES];
+      state.filteredProfiles = [...DEMO_PROFILES];
       state.cardIndex = 0;
       state.matches = [];
       state.conversations = {};
+      state.filters = { gender: 'all', handicapMin: 0, handicapMax: 54, maxDistance: 50, skill: 'all' };
       // Add demo badge
       if (!document.querySelector('.demo-badge')) {
         const badge = document.createElement('div');
@@ -817,7 +1016,7 @@
       if (state.supabase) {
         await state.supabase.auth.signOut();
       }
-      state = { mode: null, user: null, authMode: 'signin', profiles: [], cardIndex: 0, matches: [], conversations: {}, currentChat: null, supabase: state.supabase };
+      state = { mode: null, user: null, authMode: 'signin', profiles: [], filteredProfiles: [], cardIndex: 0, matches: [], conversations: {}, currentChat: null, supabase: state.supabase, filters: { gender: 'all', handicapMin: 0, handicapMax: 54, maxDistance: 50, skill: 'all' } };
       const badge = document.querySelector('.demo-badge');
       if (badge) badge.remove();
       $('bottom-nav').style.display = 'none';
@@ -830,7 +1029,7 @@
       // Clear existing cards
       stack.querySelectorAll('.match-card').forEach(c => c.remove());
 
-      const remaining = state.profiles.slice(state.cardIndex);
+      const remaining = state.filteredProfiles.slice(state.cardIndex);
       if (remaining.length === 0) {
         empty.style.display = 'block';
         $('card-actions').style.display = 'none';
@@ -850,13 +1049,16 @@
           card.style.transform = 'scale(0.95) translateY(8px)';
           card.style.opacity = '0.7';
         }
+        const distText = profile.distance != null ? `${profile.distance} mi away` : '';
+        const hcpText = profile.handicap != null ? `Handicap: ${profile.handicap}` : '';
+        const metaParts = [profile.location, profile.skill, distText, hcpText].filter(Boolean);
         card.innerHTML = `
           <div class="swipe-indicator like">PLAY</div>
           <div class="swipe-indicator pass">PASS</div>
           <div class="card-img">${profile.avatar || randomAvatar()}</div>
           <div class="card-info">
             <h3>${profile.name}, ${profile.age}</h3>
-            <div class="card-meta">${profile.location} &middot; ${profile.skill}</div>
+            <div class="card-meta">${metaParts.join(' &middot; ')}</div>
             <div class="card-sports">${profile.sports.map(s => `<span>${s}</span>`).join('')}</div>
             <p style="margin-top:8px;font-size:13px;color:var(--text-muted);">${profile.bio}</p>
           </div>
@@ -905,8 +1107,8 @@
     }
 
     async function likeCard() {
-      if (state.cardIndex >= state.profiles.length) return;
-      const profile = state.profiles[state.cardIndex];
+      if (state.cardIndex >= state.filteredProfiles.length) return;
+      const profile = state.filteredProfiles[state.cardIndex];
       state.cardIndex++;
       // Animate card out to the right
       const topCard = $('card-stack').querySelector('.match-card:last-child');
@@ -928,8 +1130,8 @@
     }
 
     async function passCard() {
-      if (state.cardIndex >= state.profiles.length) return;
-      const profile = state.profiles[state.cardIndex];
+      if (state.cardIndex >= state.filteredProfiles.length) return;
+      const profile = state.filteredProfiles[state.cardIndex];
       state.cardIndex++;
       const topCard = $('card-stack').querySelector('.match-card:last-child');
       if (topCard) {
@@ -987,7 +1189,125 @@
     }
 
     function showFilters() {
-      showToast('Filters coming soon!');
+      // Sync UI with current filter state
+      const f = state.filters;
+      document.querySelectorAll('#filter-gender-options .gender-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.value === f.gender);
+      });
+      $('filter-handicap-min').value = f.handicapMin;
+      $('filter-handicap-max').value = f.handicapMax;
+      $('filter-distance').value = f.maxDistance;
+      document.querySelectorAll('#filter-skill-options .skill-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.value === f.skill);
+      });
+      updateHandicapDisplay();
+      updateDistanceDisplay();
+      $('filter-overlay').classList.add('active');
+    }
+
+    function closeFilters() {
+      $('filter-overlay').classList.remove('active');
+    }
+
+    function toggleGenderFilter(el) {
+      document.querySelectorAll('#filter-gender-options .gender-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+
+    function toggleSkillFilter(el) {
+      document.querySelectorAll('#filter-skill-options .skill-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+
+    function updateHandicapDisplay() {
+      let min = parseInt($('filter-handicap-min').value);
+      let max = parseInt($('filter-handicap-max').value);
+      if (min > max) {
+        $('filter-handicap-min').value = max;
+        min = max;
+      }
+      $('handicap-range-display').textContent = `${min} – ${max}`;
+    }
+
+    function updateDistanceDisplay() {
+      $('distance-display').textContent = $('filter-distance').value + ' mi';
+    }
+
+    function applyFilters() {
+      const genderEl = document.querySelector('#filter-gender-options .gender-option.selected');
+      const skillEl = document.querySelector('#filter-skill-options .skill-option.selected');
+      state.filters = {
+        gender: genderEl ? genderEl.dataset.value : 'all',
+        handicapMin: parseInt($('filter-handicap-min').value),
+        handicapMax: parseInt($('filter-handicap-max').value),
+        maxDistance: parseInt($('filter-distance').value),
+        skill: skillEl ? skillEl.dataset.value : 'all'
+      };
+      filterProfiles();
+      state.cardIndex = 0;
+      renderCards();
+      renderActiveFilterTags();
+      closeFilters();
+      const count = state.filteredProfiles.length;
+      showToast(`${count} player${count !== 1 ? 's' : ''} match your filters`);
+    }
+
+    function resetFilters() {
+      state.filters = { gender: 'all', handicapMin: 0, handicapMax: 54, maxDistance: 50, skill: 'all' };
+      document.querySelectorAll('#filter-gender-options .gender-option').forEach(o => {
+        o.classList.toggle('selected', o.dataset.value === 'all');
+      });
+      document.querySelectorAll('#filter-skill-options .skill-option').forEach(o => {
+        o.classList.toggle('selected', o.dataset.value === 'all');
+      });
+      $('filter-handicap-min').value = 0;
+      $('filter-handicap-max').value = 54;
+      $('filter-distance').value = 50;
+      updateHandicapDisplay();
+      updateDistanceDisplay();
+    }
+
+    function filterProfiles() {
+      const f = state.filters;
+      state.filteredProfiles = state.profiles.filter(p => {
+        if (f.gender !== 'all' && p.gender && p.gender !== f.gender) return false;
+        if (p.handicap != null && (p.handicap < f.handicapMin || p.handicap > f.handicapMax)) return false;
+        if (p.distance != null && p.distance > f.maxDistance) return false;
+        if (f.skill !== 'all' && p.skill !== f.skill) return false;
+        return true;
+      });
+    }
+
+    function renderActiveFilterTags() {
+      const container = $('active-filters');
+      const f = state.filters;
+      const tags = [];
+      if (f.gender !== 'all') {
+        tags.push({ label: f.gender, key: 'gender' });
+      }
+      if (f.handicapMin > 0 || f.handicapMax < 54) {
+        tags.push({ label: `Handicap ${f.handicapMin}–${f.handicapMax}`, key: 'handicap' });
+      }
+      if (f.maxDistance < 50) {
+        tags.push({ label: `Within ${f.maxDistance} mi`, key: 'distance' });
+      }
+      if (f.skill !== 'all') {
+        tags.push({ label: f.skill, key: 'skill' });
+      }
+      container.innerHTML = tags.map(t =>
+        `<span class="active-filter-tag">${t.label}<span class="remove-filter" onclick="removeFilter('${t.key}')">&times;</span></span>`
+      ).join('');
+    }
+
+    function removeFilter(key) {
+      if (key === 'gender') state.filters.gender = 'all';
+      else if (key === 'handicap') { state.filters.handicapMin = 0; state.filters.handicapMax = 54; }
+      else if (key === 'distance') state.filters.maxDistance = 50;
+      else if (key === 'skill') state.filters.skill = 'all';
+      filterProfiles();
+      state.cardIndex = 0;
+      renderCards();
+      renderActiveFilterTags();
     }
     // ========== CHAT ==========
     function renderMatchesList() {
@@ -1119,7 +1439,9 @@
     }
 
     function showApp() {
+      filterProfiles();
       renderCards();
+      renderActiveFilterTags();
       renderProfile();
       showScreen('discover');
     }
@@ -1139,7 +1461,9 @@
     async function saveProfile() {
       const name = $('setup-name').value.trim();
       const age = parseInt($('setup-age').value);
+      const gender = $('setup-gender').value;
       const location = $('setup-location').value.trim();
+      const handicap = $('setup-handicap').value ? parseInt($('setup-handicap').value) : null;
       const skill = $('setup-skill').value;
       const bio = $('setup-bio').value.trim();
       const sports = Array.from(document.querySelectorAll('.sport-tag.selected')).map(el => el.dataset.sport);
@@ -1148,7 +1472,7 @@
       if (!age || age < 16) { showToast('Please enter a valid age'); return; }
       if (sports.length === 0) { showToast('Select at least one sport'); return; }
 
-      state.user = { ...state.user, name, age, location, skill, bio, sports, avatar: randomAvatar() };
+      state.user = { ...state.user, name, age, gender, location, handicap, skill, bio, sports, avatar: randomAvatar() };
 
       if (state.mode === 'live' && state.supabase) {
         await state.supabase.from('profiles').upsert({
@@ -1174,7 +1498,9 @@
     function editProfile() {
       $('setup-name').value = state.user.name || '';
       $('setup-age').value = state.user.age || '';
+      $('setup-gender').value = state.user.gender || 'prefer-not';
       $('setup-location').value = state.user.location || '';
+      $('setup-handicap').value = state.user.handicap != null ? state.user.handicap : '';
       $('setup-skill').value = state.user.skill || 'intermediate';
       $('setup-bio').value = state.user.bio || '';
       renderSportTags();
@@ -1205,6 +1531,7 @@
         .select('*')
         .not('id', 'in', `(${swipedIds.join(',')})`);
       state.profiles = profiles || [];
+      filterProfiles();
       state.cardIndex = 0;
 
       // Load matches
