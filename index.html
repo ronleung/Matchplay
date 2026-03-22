@@ -1208,13 +1208,7 @@
 
     <!-- MATCHES SCREEN -->
     <div id="matches-screen" class="screen matches-screen">
-      <div class="header" style="display:flex;align-items:center;justify-content:space-between;">
-        <h1>Matches</h1>
-        <button class="btn btn-primary" style="padding:8px 16px;font-size:12px;" onclick="openStartGame()" id="start-round-btn">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:3px;"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4z"/></svg>
-          Start Round
-        </button>
-      </div>
+      <div class="header"><h1>Matches</h1></div>
       <div class="matches-list" id="matches-list"></div>
     </div>
 
@@ -1299,12 +1293,7 @@
 
     <!-- START GAME SCREEN -->
     <div id="start-game-screen" class="screen start-game-screen">
-      <div class="header">
-        <button class="btn-ghost" onclick="navigateTo('matches')">
-          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <h1 style="flex:1;">Start a Round</h1>
-      </div>
+      <div class="header"><h1>Start a Round</h1></div>
       <div class="start-game-content">
         <div class="sg-section">
           <div class="sg-section-title">Scoring Mode</div>
@@ -1473,6 +1462,10 @@
       <button class="nav-btn" data-screen="leaderboard" onclick="navigateTo('leaderboard')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21V11M16 21V7M12 21V3"/><path d="M6 21h12"/></svg>
         Board
+      </button>
+      <button class="nav-btn" data-screen="start-game" onclick="openStartGame()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4z"/></svg>
+        Play
       </button>
       <button class="nav-btn" data-screen="venues" onclick="navigateTo('venues')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -2309,7 +2302,7 @@
         b.classList.toggle('active', b.dataset.screen === name);
       });
       // Hide nav on auth/setup/chat screens
-      const hideNav = ['auth', 'setup', 'chat', 'start-game', 'live-game'].includes(name);
+      const hideNav = ['auth', 'setup', 'chat', 'live-game'].includes(name);
       $('bottom-nav').style.display = hideNav ? 'none' : 'flex';
     }
 
@@ -3067,10 +3060,6 @@
     let sgHoles = 18;
 
     function openStartGame() {
-      if (state.matches.length === 0) {
-        showToast('Match with players first before starting a round!');
-        return;
-      }
       sgSelectedPlayers = [];
       sgGameMode = 'stroke';
       sgHoles = 18;
@@ -3083,6 +3072,9 @@
       // Populate player list
       const list = $('sg-player-list');
       list.innerHTML = '';
+      if (state.matches.length === 0) {
+        list.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">No matches yet. Discover and match with players first!</p>';
+      }
       state.matches.forEach(m => {
         const row = document.createElement('div');
         row.className = 'sg-player-row';
