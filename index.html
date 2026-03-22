@@ -566,22 +566,72 @@
       color: var(--primary-light);
       background: rgba(99,102,241,0.15);
     }
-    .skill-options {
+    .range-slider-container {
+      position: relative;
+      height: 36px;
+      display: flex;
+      align-items: center;
+    }
+    .range-slider-container input[type="range"] {
+      position: absolute;
+      width: 100%;
+      pointer-events: none;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      margin: 0;
+    }
+    .range-slider-container input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      cursor: pointer;
+      pointer-events: all;
+      border: 2px solid var(--bg-card);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .range-slider-container input[type="range"]::-moz-range-thumb {
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      cursor: pointer;
+      pointer-events: all;
+      border: 2px solid var(--bg-card);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .range-track {
+      position: absolute;
+      height: 4px;
+      width: 100%;
+      background: var(--bg-input);
+      border-radius: 2px;
+    }
+    .range-track-fill {
+      position: absolute;
+      height: 4px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+    .budget-presets {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+      margin-top: 8px;
     }
-    .skill-option {
-      padding: 8px 16px;
+    .budget-preset {
+      padding: 6px 14px;
       border-radius: 20px;
       background: var(--bg-input);
       border: 1.5px solid transparent;
       color: var(--text-muted);
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       transition: all 0.2s;
     }
-    .skill-option.selected {
+    .budget-preset.selected {
       border-color: var(--primary);
       color: var(--primary-light);
       background: rgba(99,102,241,0.15);
@@ -700,16 +750,20 @@
         <input id="setup-location" class="input" placeholder="City, State">
       </div>
       <div class="input-group">
-        <label>Handicap / Rating <span style="font-weight:400;color:var(--text-muted);">(optional, 0-54)</span></label>
-        <input id="setup-handicap" class="input" type="number" placeholder="e.g. 15" min="0" max="54">
+        <label>Handicap Index <span style="font-weight:400;color:var(--text-muted);">(optional, -10 to +54)</span></label>
+        <input id="setup-handicap" class="input" type="number" placeholder="e.g. 15" min="-10" max="54" step="0.1">
       </div>
       <div class="input-group">
-        <label>Skill Level</label>
-        <select id="setup-skill" class="input">
-          <option value="beginner">Beginner</option>
-          <option value="intermediate" selected>Intermediate</option>
-          <option value="advanced">Advanced</option>
-          <option value="pro">Pro / Competitive</option>
+        <label>Green Fee Budget <span style="font-weight:400;color:var(--text-muted);">(typical per round)</span></label>
+        <select id="setup-budget" class="input">
+          <option value="">Prefer not to say</option>
+          <option value="30">Under $30 (municipal / twilight)</option>
+          <option value="50">$30 – $50</option>
+          <option value="75">$50 – $75</option>
+          <option value="100">$75 – $100</option>
+          <option value="150">$100 – $150</option>
+          <option value="200">$150 – $200</option>
+          <option value="300">$200+ (resort / premium)</option>
         </select>
       </div>
       <div class="input-group">
@@ -824,25 +878,27 @@
         </div>
       </div>
       <div class="filter-section">
-        <label>Handicap Range <span class="range-display" id="handicap-range-display">0 – 54</span></label>
-        <div style="display:flex;gap:12px;align-items:center;">
-          <input type="range" id="filter-handicap-min" min="0" max="54" value="0" oninput="updateHandicapDisplay()">
-          <input type="range" id="filter-handicap-max" min="0" max="54" value="54" oninput="updateHandicapDisplay()">
+        <label>Handicap Range <span class="range-display" id="handicap-range-display">-10 to +54</span></label>
+        <div class="range-slider-container">
+          <div class="range-track"></div>
+          <div class="range-track-fill" id="handicap-track-fill"></div>
+          <input type="range" id="filter-handicap-min" min="-10" max="54" value="-10" step="1" oninput="updateHandicapDisplay()">
+          <input type="range" id="filter-handicap-max" min="-10" max="54" value="54" step="1" oninput="updateHandicapDisplay()">
+        </div>
+      </div>
+      <div class="filter-section">
+        <label>Green Fee Budget <span class="range-display" id="budget-display">Any</span></label>
+        <input type="range" id="filter-budget" min="0" max="300" value="300" step="10" oninput="updateBudgetDisplay()">
+        <div class="budget-presets">
+          <div class="budget-preset" data-value="50" onclick="setBudgetPreset(this)">Under $50</div>
+          <div class="budget-preset" data-value="100" onclick="setBudgetPreset(this)">Under $100</div>
+          <div class="budget-preset" data-value="150" onclick="setBudgetPreset(this)">Under $150</div>
+          <div class="budget-preset" data-value="300" onclick="setBudgetPreset(this)">Any price</div>
         </div>
       </div>
       <div class="filter-section">
         <label>Max Distance <span class="range-display" id="distance-display">50 mi</span></label>
         <input type="range" id="filter-distance" min="1" max="100" value="50" oninput="updateDistanceDisplay()">
-      </div>
-      <div class="filter-section">
-        <label>Skill Level</label>
-        <div class="skill-options" id="filter-skill-options">
-          <div class="skill-option selected" data-value="all" onclick="toggleSkillFilter(this)">All</div>
-          <div class="skill-option" data-value="beginner" onclick="toggleSkillFilter(this)">Beginner</div>
-          <div class="skill-option" data-value="intermediate" onclick="toggleSkillFilter(this)">Intermediate</div>
-          <div class="skill-option" data-value="advanced" onclick="toggleSkillFilter(this)">Advanced</div>
-          <div class="skill-option" data-value="pro" onclick="toggleSkillFilter(this)">Pro</div>
-        </div>
       </div>
       <div class="filter-actions">
         <button class="btn btn-outline" onclick="closeFilters()">Cancel</button>
@@ -897,23 +953,23 @@
       supabase: null,
       filters: {
         gender: 'all',
-        handicapMin: 0,
+        handicapMin: -10,
         handicapMax: 54,
         maxDistance: 50,
-        skill: 'all'
+        maxBudget: 300
       }
     };
 
     // ========== DEMO DATA ==========
     const DEMO_PROFILES = [
-      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', location: 'San Francisco, CA', distance: 3, handicap: 8, skill: 'advanced', sports: ['Tennis','Pickleball','Running'], bio: 'NTRP 4.5 player, always looking for rallying partners. Also into pickleball on weekends!', avatar: '&#127934;' },
-      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', location: 'San Francisco, CA', distance: 5, handicap: 22, skill: 'intermediate', sports: ['Basketball','Soccer','Volleyball'], bio: 'Former college basketball player. I run pickup games every Saturday at Golden Gate Park.', avatar: '&#127936;' },
-      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', location: 'Oakland, CA', distance: 12, handicap: 36, skill: 'beginner', sports: ['Golf','Tennis','Cycling'], bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners.', avatar: '&#9971;' },
-      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', location: 'San Jose, CA', distance: 42, handicap: 2, skill: 'pro', sports: ['Badminton','Table Tennis','Squash'], bio: 'Competitive badminton player. I train 5 days a week. Looking for serious hitting partners.', avatar: '&#127947;' },
-      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', location: 'Palo Alto, CA', distance: 28, handicap: 18, skill: 'intermediate', sports: ['Rock Climbing','Yoga','CrossFit'], bio: 'Climbing V5-V6 range. I go to Planet Granite most evenings. Let\'s boulder together!', avatar: '&#129495;' },
-      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', location: 'Berkeley, CA', distance: 15, handicap: 25, skill: 'intermediate', sports: ['Swimming','Running','Cycling'], bio: 'Training for my first triathlon. Would love training buddies who can push my pace!', avatar: '&#127946;' },
-      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', location: 'San Francisco, CA', distance: 2, handicap: 5, skill: 'advanced', sports: ['Tennis','Boxing','CrossFit'], bio: 'Former D3 tennis player. I also box at a local gym. Down for any competitive sport.', avatar: '&#129354;' },
-      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', location: 'Mountain View, CA', distance: 35, handicap: 40, skill: 'beginner', sports: ['Pickleball','Volleyball','Yoga'], bio: 'New to pickleball and totally addicted! Chill vibes, just here to have fun and improve.', avatar: '&#127939;' }
+      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', location: 'San Francisco, CA', distance: 3, handicap: 4.2, budget: 150, sports: ['Golf','Tennis','Running'], bio: 'Single-digit handicap chasing scratch. Love playing premium courses on weekends. Always down for a competitive round!', avatar: '&#127948;' },
+      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', location: 'San Francisco, CA', distance: 5, handicap: 18.5, budget: 75, sports: ['Golf','Yoga','Cycling'], bio: 'Mid-handicapper working on my short game. I prefer muni courses — it\'s about the walk, not the wallet!', avatar: '&#127948;' },
+      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', location: 'Oakland, CA', distance: 12, handicap: 36.0, budget: 50, sports: ['Golf','Tennis','Cycling'], bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners. Budget-friendly courses preferred.', avatar: '&#9971;' },
+      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', location: 'San Jose, CA', distance: 42, handicap: -1.4, budget: 200, sports: ['Golf','Swimming','CrossFit'], bio: 'Plus handicap, competed in college. I play mostly premium/resort courses. Looking for serious playing partners.', avatar: '&#127948;' },
+      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', location: 'Palo Alto, CA', distance: 28, handicap: 14.0, budget: 100, sports: ['Golf','Rock Climbing','Yoga'], bio: 'Bogey golfer who loves a good time on the course. I play mid-range courses 2x a week. Let\'s tee it up!', avatar: '&#9971;' },
+      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', location: 'Berkeley, CA', distance: 15, handicap: 28.3, budget: 50, sports: ['Golf','Running','Pickleball'], bio: 'High handicapper but improving fast! I stick to affordable public courses. Looking for chill playing partners.', avatar: '&#127948;' },
+      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', location: 'San Francisco, CA', distance: 2, handicap: 1.8, budget: 300, sports: ['Golf','Boxing','Tennis'], bio: 'Scratch golfer, former mini-tour player. I play everywhere from munis to resort courses. Down for any stakes.', avatar: '&#127948;' },
+      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', location: 'Mountain View, CA', distance: 35, handicap: 42.0, budget: 30, sports: ['Golf','Pickleball','Volleyball'], bio: 'Total beginner — just got my first set of clubs! Looking for someone patient. Twilight rounds are my thing.', avatar: '&#9971;' }
     ];
 
     const DEMO_USER = {
@@ -922,9 +978,9 @@
       age: 27,
       gender: 'male',
       location: 'San Francisco, CA',
-      handicap: 15,
-      skill: 'intermediate',
-      sports: ['Tennis', 'Pickleball', 'Running'],
+      handicap: 12.0,
+      budget: 100,
+      sports: ['Golf', 'Tennis', 'Pickleball'],
       bio: 'Demo mode — explore the app!',
       avatar: '&#11088;'
     };
@@ -1001,7 +1057,7 @@
       state.cardIndex = 0;
       state.matches = [];
       state.conversations = {};
-      state.filters = { gender: 'all', handicapMin: 0, handicapMax: 54, maxDistance: 50, skill: 'all' };
+      state.filters = { gender: 'all', handicapMin: -10, handicapMax: 54, maxDistance: 50, maxBudget: 300 };
       // Add demo badge
       if (!document.querySelector('.demo-badge')) {
         const badge = document.createElement('div');
@@ -1016,7 +1072,7 @@
       if (state.supabase) {
         await state.supabase.auth.signOut();
       }
-      state = { mode: null, user: null, authMode: 'signin', profiles: [], filteredProfiles: [], cardIndex: 0, matches: [], conversations: {}, currentChat: null, supabase: state.supabase, filters: { gender: 'all', handicapMin: 0, handicapMax: 54, maxDistance: 50, skill: 'all' } };
+      state = { mode: null, user: null, authMode: 'signin', profiles: [], filteredProfiles: [], cardIndex: 0, matches: [], conversations: {}, currentChat: null, supabase: state.supabase, filters: { gender: 'all', handicapMin: -10, handicapMax: 54, maxDistance: 50, maxBudget: 300 } };
       const badge = document.querySelector('.demo-badge');
       if (badge) badge.remove();
       $('bottom-nav').style.display = 'none';
@@ -1050,8 +1106,9 @@
           card.style.opacity = '0.7';
         }
         const distText = profile.distance != null ? `${profile.distance} mi away` : '';
-        const hcpText = profile.handicap != null ? `Handicap: ${profile.handicap}` : '';
-        const metaParts = [profile.location, profile.skill, distText, hcpText].filter(Boolean);
+        const hcpText = profile.handicap != null ? `HCP ${profile.handicap >= 0 ? '+' : ''}${profile.handicap}` : '';
+        const budgetText = profile.budget != null ? `$${profile.budget}/round` : '';
+        const metaParts = [profile.location, distText, hcpText, budgetText].filter(Boolean);
         card.innerHTML = `
           <div class="swipe-indicator like">PLAY</div>
           <div class="swipe-indicator pass">PASS</div>
@@ -1197,11 +1254,11 @@
       $('filter-handicap-min').value = f.handicapMin;
       $('filter-handicap-max').value = f.handicapMax;
       $('filter-distance').value = f.maxDistance;
-      document.querySelectorAll('#filter-skill-options .skill-option').forEach(el => {
-        el.classList.toggle('selected', el.dataset.value === f.skill);
-      });
+      $('filter-budget').value = f.maxBudget;
       updateHandicapDisplay();
       updateDistanceDisplay();
+      updateBudgetDisplay();
+      syncBudgetPresets();
       $('filter-overlay').classList.add('active');
     }
 
@@ -1214,34 +1271,65 @@
       el.classList.add('selected');
     }
 
-    function toggleSkillFilter(el) {
-      document.querySelectorAll('#filter-skill-options .skill-option').forEach(o => o.classList.remove('selected'));
-      el.classList.add('selected');
-    }
-
     function updateHandicapDisplay() {
       let min = parseInt($('filter-handicap-min').value);
       let max = parseInt($('filter-handicap-max').value);
       if (min > max) {
+        const temp = min;
         $('filter-handicap-min').value = max;
+        $('filter-handicap-max').value = temp;
         min = max;
+        max = temp;
       }
-      $('handicap-range-display').textContent = `${min} – ${max}`;
+      const minLabel = min >= 0 ? `+${min}` : `${min}`;
+      const maxLabel = max >= 0 ? `+${max}` : `${max}`;
+      const isDefault = min === -10 && max === 54;
+      $('handicap-range-display').textContent = isDefault ? 'Any' : `${minLabel} to ${maxLabel}`;
+      // Update track fill
+      const range = 64; // -10 to 54
+      const leftPct = ((min + 10) / range) * 100;
+      const rightPct = ((max + 10) / range) * 100;
+      const fill = $('handicap-track-fill');
+      if (fill) {
+        fill.style.left = leftPct + '%';
+        fill.style.width = (rightPct - leftPct) + '%';
+      }
     }
 
     function updateDistanceDisplay() {
       $('distance-display').textContent = $('filter-distance').value + ' mi';
     }
 
+    function updateBudgetDisplay() {
+      const val = parseInt($('filter-budget').value);
+      $('budget-display').textContent = val >= 300 ? 'Any' : `Up to $${val}`;
+      syncBudgetPresets();
+    }
+
+    function setBudgetPreset(el) {
+      const val = parseInt(el.dataset.value);
+      $('filter-budget').value = val;
+      updateBudgetDisplay();
+    }
+
+    function syncBudgetPresets() {
+      const val = parseInt($('filter-budget').value);
+      document.querySelectorAll('.budget-preset').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.value) === val);
+      });
+    }
+
     function applyFilters() {
       const genderEl = document.querySelector('#filter-gender-options .gender-option.selected');
-      const skillEl = document.querySelector('#filter-skill-options .skill-option.selected');
+      let hMin = parseInt($('filter-handicap-min').value);
+      let hMax = parseInt($('filter-handicap-max').value);
+      if (hMin > hMax) { const t = hMin; hMin = hMax; hMax = t; }
       state.filters = {
         gender: genderEl ? genderEl.dataset.value : 'all',
-        handicapMin: parseInt($('filter-handicap-min').value),
-        handicapMax: parseInt($('filter-handicap-max').value),
+        handicapMin: hMin,
+        handicapMax: hMax,
         maxDistance: parseInt($('filter-distance').value),
-        skill: skillEl ? skillEl.dataset.value : 'all'
+        maxBudget: parseInt($('filter-budget').value)
       };
       filterProfiles();
       state.cardIndex = 0;
@@ -1253,18 +1341,17 @@
     }
 
     function resetFilters() {
-      state.filters = { gender: 'all', handicapMin: 0, handicapMax: 54, maxDistance: 50, skill: 'all' };
+      state.filters = { gender: 'all', handicapMin: -10, handicapMax: 54, maxDistance: 50, maxBudget: 300 };
       document.querySelectorAll('#filter-gender-options .gender-option').forEach(o => {
         o.classList.toggle('selected', o.dataset.value === 'all');
       });
-      document.querySelectorAll('#filter-skill-options .skill-option').forEach(o => {
-        o.classList.toggle('selected', o.dataset.value === 'all');
-      });
-      $('filter-handicap-min').value = 0;
+      $('filter-handicap-min').value = -10;
       $('filter-handicap-max').value = 54;
       $('filter-distance').value = 50;
+      $('filter-budget').value = 300;
       updateHandicapDisplay();
       updateDistanceDisplay();
+      updateBudgetDisplay();
     }
 
     function filterProfiles() {
@@ -1273,7 +1360,7 @@
         if (f.gender !== 'all' && p.gender && p.gender !== f.gender) return false;
         if (p.handicap != null && (p.handicap < f.handicapMin || p.handicap > f.handicapMax)) return false;
         if (p.distance != null && p.distance > f.maxDistance) return false;
-        if (f.skill !== 'all' && p.skill !== f.skill) return false;
+        if (f.maxBudget < 300 && p.budget != null && p.budget > f.maxBudget) return false;
         return true;
       });
     }
@@ -1285,14 +1372,16 @@
       if (f.gender !== 'all') {
         tags.push({ label: f.gender, key: 'gender' });
       }
-      if (f.handicapMin > 0 || f.handicapMax < 54) {
-        tags.push({ label: `Handicap ${f.handicapMin}–${f.handicapMax}`, key: 'handicap' });
+      if (f.handicapMin > -10 || f.handicapMax < 54) {
+        const minL = f.handicapMin >= 0 ? `+${f.handicapMin}` : `${f.handicapMin}`;
+        const maxL = f.handicapMax >= 0 ? `+${f.handicapMax}` : `${f.handicapMax}`;
+        tags.push({ label: `Handicap ${minL} to ${maxL}`, key: 'handicap' });
+      }
+      if (f.maxBudget < 300) {
+        tags.push({ label: `Budget ≤ $${f.maxBudget}`, key: 'budget' });
       }
       if (f.maxDistance < 50) {
         tags.push({ label: `Within ${f.maxDistance} mi`, key: 'distance' });
-      }
-      if (f.skill !== 'all') {
-        tags.push({ label: f.skill, key: 'skill' });
       }
       container.innerHTML = tags.map(t =>
         `<span class="active-filter-tag">${t.label}<span class="remove-filter" onclick="removeFilter('${t.key}')">&times;</span></span>`
@@ -1301,9 +1390,9 @@
 
     function removeFilter(key) {
       if (key === 'gender') state.filters.gender = 'all';
-      else if (key === 'handicap') { state.filters.handicapMin = 0; state.filters.handicapMax = 54; }
+      else if (key === 'handicap') { state.filters.handicapMin = -10; state.filters.handicapMax = 54; }
+      else if (key === 'budget') state.filters.maxBudget = 300;
       else if (key === 'distance') state.filters.maxDistance = 50;
-      else if (key === 'skill') state.filters.skill = 'all';
       filterProfiles();
       state.cardIndex = 0;
       renderCards();
@@ -1463,8 +1552,8 @@
       const age = parseInt($('setup-age').value);
       const gender = $('setup-gender').value;
       const location = $('setup-location').value.trim();
-      const handicap = $('setup-handicap').value ? parseInt($('setup-handicap').value) : null;
-      const skill = $('setup-skill').value;
+      const handicap = $('setup-handicap').value ? parseFloat($('setup-handicap').value) : null;
+      const budget = $('setup-budget').value ? parseInt($('setup-budget').value) : null;
       const bio = $('setup-bio').value.trim();
       const sports = Array.from(document.querySelectorAll('.sport-tag.selected')).map(el => el.dataset.sport);
 
@@ -1472,7 +1561,7 @@
       if (!age || age < 16) { showToast('Please enter a valid age'); return; }
       if (sports.length === 0) { showToast('Select at least one sport'); return; }
 
-      state.user = { ...state.user, name, age, gender, location, handicap, skill, bio, sports, avatar: randomAvatar() };
+      state.user = { ...state.user, name, age, gender, location, handicap, budget, bio, sports, avatar: randomAvatar() };
 
       if (state.mode === 'live' && state.supabase) {
         await state.supabase.from('profiles').upsert({
@@ -1489,7 +1578,9 @@
       if (!state.user) return;
       $('profile-avatar').innerHTML = state.user.avatar || '&#11088;';
       $('profile-name').textContent = state.user.name;
-      $('profile-meta').textContent = `${state.user.age || ''} · ${state.user.location || ''} · ${state.user.skill || ''}`;
+      const hcp = state.user.handicap != null ? `HCP ${state.user.handicap >= 0 ? '+' : ''}${state.user.handicap}` : '';
+      const budget = state.user.budget ? `$${state.user.budget}/round` : '';
+      $('profile-meta').textContent = [state.user.age, state.user.location, hcp, budget].filter(Boolean).join(' · ');
       $('stat-matches').textContent = state.matches.length;
       $('stat-played').textContent = '0';
       $('stat-sports').textContent = (state.user.sports || []).length;
@@ -1501,7 +1592,7 @@
       $('setup-gender').value = state.user.gender || 'prefer-not';
       $('setup-location').value = state.user.location || '';
       $('setup-handicap').value = state.user.handicap != null ? state.user.handicap : '';
-      $('setup-skill').value = state.user.skill || 'intermediate';
+      $('setup-budget').value = state.user.budget || '';
       $('setup-bio').value = state.user.bio || '';
       renderSportTags();
       (state.user.sports || []).forEach(s => {
