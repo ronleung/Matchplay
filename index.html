@@ -226,6 +226,7 @@
       border-color: var(--primary); color: var(--primary-light);
       background: rgba(99,102,241,0.15);
     }
+    .budget-hint { font-size: 11px; color: var(--text-muted); opacity: 0.7; margin-top: 2px; }
     .gps-status {
       margin-top: 8px; padding: 10px 14px; border-radius: var(--radius);
       background: var(--bg-input); font-size: 13px; color: var(--text-muted);
@@ -886,17 +887,14 @@
         <input id="setup-handicap" class="input" type="number" placeholder="e.g. 15" min="-10" max="54" step="0.1">
       </div>
       <div class="input-group">
-        <label>Green Fee Budget <span style="font-weight:400;color:var(--text-muted);">(typical per round)</span></label>
-        <select id="setup-budget" class="input">
-          <option value="">Prefer not to say</option>
-          <option value="30">Under $30 (municipal / twilight)</option>
-          <option value="50">$30 – $50</option>
-          <option value="75">$50 – $75</option>
-          <option value="100">$75 – $100</option>
-          <option value="150">$100 – $150</option>
-          <option value="200">$150 – $200</option>
-          <option value="300">$200+ (resort / premium)</option>
-        </select>
+        <label>Green Fee Budget <span class="range-display" id="setup-budget-display">$20 – $150</span></label>
+        <div class="range-slider-container">
+          <div class="range-track"></div>
+          <div class="range-track-fill" id="setup-budget-track-fill"></div>
+          <input type="range" id="setup-budget-min" min="0" max="300" value="20" step="10" oninput="updateSetupBudgetDisplay()">
+          <input type="range" id="setup-budget-max" min="0" max="300" value="150" step="10" oninput="updateSetupBudgetDisplay()">
+        </div>
+        <div class="budget-hint">Set the range of green fees you're comfortable playing</div>
       </div>
       <div class="input-group">
         <label>Bio</label>
@@ -1255,14 +1253,14 @@
 
     // ========== DEMO DATA ==========
     const DEMO_PROFILES = [
-      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', country: 'CA', region: 'ON', city: 'Toronto', lat: 43.6700, lng: -79.3900, handicap: 4.2, budget: 150, bio: 'Single-digit handicap chasing scratch. Love playing the premium courses around the GTA. Always down for a competitive round!', avatar: '&#127948;' },
-      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', country: 'CA', region: 'ON', city: 'Mississauga', lat: 43.5890, lng: -79.6441, handicap: 18.5, budget: 75, bio: 'Mid-handicapper working on my short game. I play Lakeview and Credit Valley mostly — it\'s about the walk, not the wallet!', avatar: '&#127948;' },
-      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', country: 'CA', region: 'ON', city: 'Brampton', lat: 43.7315, lng: -79.7624, handicap: 36.0, budget: 50, bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners. Budget-friendly courses preferred.', avatar: '&#9971;' },
-      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', country: 'CA', region: 'ON', city: 'Oakville', lat: 43.4675, lng: -79.6877, handicap: -1.4, budget: 200, bio: 'Plus handicap, competed in university. I play Glen Abbey, RattleSnake Point. Looking for serious playing partners.', avatar: '&#127948;' },
-      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', country: 'CA', region: 'ON', city: 'Markham', lat: 43.8561, lng: -79.3370, handicap: 14.0, budget: 100, bio: 'Bogey golfer who loves a good time on the course. Angus Glen is my home course. Let\'s tee it up!', avatar: '&#9971;' },
-      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', country: 'CA', region: 'ON', city: 'Hamilton', lat: 43.2557, lng: -79.8711, handicap: 28.3, budget: 50, bio: 'High handicapper but improving fast! I stick to affordable public courses around the Hammer. Looking for chill playing partners.', avatar: '&#127948;' },
-      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', country: 'CA', region: 'ON', city: 'Vaughan', lat: 43.8361, lng: -79.4983, handicap: 1.8, budget: 300, bio: 'Scratch golfer, former OUA player. I play everywhere from munis to private clubs. Down for any stakes.', avatar: '&#127948;' },
-      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', country: 'CA', region: 'ON', city: 'Richmond Hill', lat: 43.8828, lng: -79.4403, handicap: 42.0, budget: 30, bio: 'Total beginner — just got my first set of clubs! Looking for someone patient. Twilight rounds at Mill Pond are my thing.', avatar: '&#9971;' }
+      { id: 'd1', name: 'Alex Chen', age: 28, gender: 'male', country: 'CA', region: 'ON', city: 'Toronto', lat: 43.6700, lng: -79.3900, handicap: 4.2, budgetMin: 80, budgetMax: 200, bio: 'Single-digit handicap chasing scratch. Love playing the premium courses around the GTA. Always down for a competitive round!', avatar: '&#127948;' },
+      { id: 'd2', name: 'Jordan Lee', age: 25, gender: 'female', country: 'CA', region: 'ON', city: 'Mississauga', lat: 43.5890, lng: -79.6441, handicap: 18.5, budgetMin: 30, budgetMax: 80, bio: 'Mid-handicapper working on my short game. I play Lakeview and Credit Valley mostly — it\'s about the walk, not the wallet!', avatar: '&#127948;' },
+      { id: 'd3', name: 'Sam Rivera', age: 32, gender: 'male', country: 'CA', region: 'ON', city: 'Brampton', lat: 43.7315, lng: -79.7624, handicap: 36.0, budgetMin: 20, budgetMax: 60, bio: 'Just picked up golf last year and I am hooked! Looking for patient playing partners. Budget-friendly courses preferred.', avatar: '&#9971;' },
+      { id: 'd4', name: 'Casey Kim', age: 27, gender: 'female', country: 'CA', region: 'ON', city: 'Oakville', lat: 43.4675, lng: -79.6877, handicap: -1.4, budgetMin: 100, budgetMax: 300, bio: 'Plus handicap, competed in university. I play Glen Abbey, RattleSnake Point. Looking for serious playing partners.', avatar: '&#127948;' },
+      { id: 'd5', name: 'Morgan Park', age: 30, gender: 'non-binary', country: 'CA', region: 'ON', city: 'Markham', lat: 43.8561, lng: -79.3370, handicap: 14.0, budgetMin: 50, budgetMax: 120, bio: 'Bogey golfer who loves a good time on the course. Angus Glen is my home course. Let\'s tee it up!', avatar: '&#9971;' },
+      { id: 'd6', name: 'Riley Davis', age: 24, gender: 'female', country: 'CA', region: 'ON', city: 'Hamilton', lat: 43.2557, lng: -79.8711, handicap: 28.3, budgetMin: 20, budgetMax: 60, bio: 'High handicapper but improving fast! I stick to affordable public courses around the Hammer. Looking for chill playing partners.', avatar: '&#127948;' },
+      { id: 'd7', name: 'Taylor Nguyen', age: 29, gender: 'male', country: 'CA', region: 'ON', city: 'Vaughan', lat: 43.8361, lng: -79.4983, handicap: 1.8, budgetMin: 50, budgetMax: 300, bio: 'Scratch golfer, former OUA player. I play everywhere from munis to private clubs. Down for any stakes.', avatar: '&#127948;' },
+      { id: 'd8', name: 'Avery Singh', age: 26, gender: 'male', country: 'CA', region: 'ON', city: 'Richmond Hill', lat: 43.8828, lng: -79.4403, handicap: 42.0, budgetMin: 0, budgetMax: 40, bio: 'Total beginner — just got my first set of clubs! Looking for someone patient. Twilight rounds at Mill Pond are my thing.', avatar: '&#9971;' }
     ];
 
     const DEMO_USER = {
@@ -1276,7 +1274,8 @@
       lat: 43.6532,
       lng: -79.3832,
       handicap: 12.0,
-      budget: 100,
+      budgetMin: 50,
+      budgetMax: 150,
       bio: 'Demo mode — explore the app!',
       avatar: '&#11088;'
     };
@@ -1410,7 +1409,9 @@
         const loc = getLocationDisplay(profile);
         const distText = profile.distance != null ? `${profile.distance} km away` : '';
         const hcpText = profile.handicap != null ? `HCP ${profile.handicap >= 0 ? '+' : ''}${profile.handicap}` : '';
-        const budgetText = profile.budget != null ? `$${profile.budget}/round` : '';
+        const budgetText = profile.budgetMin != null && profile.budgetMax != null
+          ? `$${profile.budgetMin}–$${profile.budgetMax}`
+          : (profile.budget != null ? `$${profile.budget}/round` : '');
         const metaParts = [loc, distText, hcpText, budgetText].filter(Boolean);
         card.innerHTML = `
           <div class="swipe-indicator like">PLAY</div>
@@ -1662,7 +1663,14 @@
         if (f.gender !== 'all' && p.gender && p.gender !== f.gender) return false;
         if (p.handicap != null && (p.handicap < f.handicapMin || p.handicap > f.handicapMax)) return false;
         if (p.distance != null && p.distance > f.maxDistance) return false;
-        if (f.maxBudget < 300 && p.budget != null && p.budget > f.maxBudget) return false;
+        if (f.maxBudget < 300) {
+          // For profiles with budget range, check overlap; for legacy single budget, check max
+          if (p.budgetMin != null && p.budgetMax != null) {
+            if (p.budgetMin > f.maxBudget) return false;
+          } else if (p.budget != null && p.budget > f.maxBudget) {
+            return false;
+          }
+        }
         return true;
       });
     }
@@ -1999,12 +2007,36 @@
 
     // ========== PROFILE ==========
 
+    function updateSetupBudgetDisplay() {
+      let min = parseInt($('setup-budget-min').value);
+      let max = parseInt($('setup-budget-max').value);
+      if (min > max) {
+        const temp = min;
+        $('setup-budget-min').value = max;
+        $('setup-budget-max').value = temp;
+        min = max;
+        max = temp;
+      }
+      const minLabel = min === 0 ? '$0' : `$${min}`;
+      const maxLabel = max >= 300 ? '$300+' : `$${max}`;
+      $('setup-budget-display').textContent = `${minLabel} – ${maxLabel}`;
+      // Update track fill
+      const leftPct = (min / 300) * 100;
+      const rightPct = (max / 300) * 100;
+      const fill = $('setup-budget-track-fill');
+      if (fill) {
+        fill.style.left = leftPct + '%';
+        fill.style.width = (rightPct - leftPct) + '%';
+      }
+    }
+
     async function saveProfile() {
       const name = $('setup-name').value.trim();
       const age = parseInt($('setup-age').value);
       const gender = $('setup-gender').value;
       const handicap = $('setup-handicap').value ? parseFloat($('setup-handicap').value) : null;
-      const budget = $('setup-budget').value ? parseInt($('setup-budget').value) : null;
+      const budgetMin = parseInt($('setup-budget-min').value);
+      const budgetMax = parseInt($('setup-budget-max').value);
       const bio = $('setup-bio').value.trim();
 
       if (!name) { showToast('Please enter your name'); return; }
@@ -2026,12 +2058,12 @@
         if (coords) { lat = coords[0]; lng = coords[1]; }
       }
 
-      state.user = { ...state.user, name, age, gender, country, region, city, lat, lng, handicap, budget, bio, locationMode, avatar: randomAvatar() };
+      state.user = { ...state.user, name, age, gender, country, region, city, lat, lng, handicap, budgetMin, budgetMax, bio, locationMode, avatar: randomAvatar() };
 
       if (state.mode === 'live' && state.supabase) {
         await state.supabase.from('profiles').upsert({
           id: state.user.id,
-          name, age, country, region, city, handicap, budget, bio, avatar: state.user.avatar
+          name, age, country, region, city, handicap, budget_min: budgetMin, budget_max: budgetMax, bio, avatar: state.user.avatar
         });
         await loadLiveData();
       }
@@ -2044,7 +2076,9 @@
       $('profile-avatar').innerHTML = state.user.avatar || '&#11088;';
       $('profile-name').textContent = state.user.name;
       const hcp = state.user.handicap != null ? `HCP ${state.user.handicap >= 0 ? '+' : ''}${state.user.handicap}` : '';
-      const budget = state.user.budget ? `$${state.user.budget}/round` : '';
+      const budget = state.user.budgetMin != null && state.user.budgetMax != null
+        ? `$${state.user.budgetMin}–$${state.user.budgetMax}`
+        : (state.user.budget ? `$${state.user.budget}/round` : '');
       const loc = state.user.locationMode === 'gps' ? 'GPS Location' : getLocationDisplay(state.user);
       $('profile-meta').textContent = [state.user.age, loc, hcp, budget].filter(Boolean).join(' · ');
       $('stat-matches').textContent = state.matches.length;
@@ -2069,7 +2103,9 @@
         }
       }
       $('setup-handicap').value = state.user.handicap != null ? state.user.handicap : '';
-      $('setup-budget').value = state.user.budget || '';
+      $('setup-budget-min').value = state.user.budgetMin != null ? state.user.budgetMin : 20;
+      $('setup-budget-max').value = state.user.budgetMax != null ? state.user.budgetMax : 150;
+      updateSetupBudgetDisplay();
       $('setup-bio').value = state.user.bio || '';
       showScreen('setup');
     }
