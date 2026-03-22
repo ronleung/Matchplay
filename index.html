@@ -760,6 +760,11 @@
     }
     .venue-card .venue-tag.private { background: rgba(234,179,8,0.15); color: var(--accent-yellow); }
     .venue-card .venue-tag.simulator { background: rgba(46,173,86,0.12); color: var(--primary-light); }
+    .venue-card .venue-link {
+      display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 600;
+      color: var(--primary); text-decoration: none; transition: opacity 0.2s;
+    }
+    .venue-card .venue-link:hover { opacity: 0.8; text-decoration: underline; }
     .venues-loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
     .venues-loading .spinner {
       width: 32px; height: 32px; border: 3px solid var(--bg-input);
@@ -2424,45 +2429,82 @@
       }
     }
 
+    // Bayesian leaderboard scoring constants
+    // Points: Win = 2, Draw = 1, Loss = 0
+    // Formula: score = (n / (n + K)) * playerAvg + (K / (n + K)) * globalAvg
+    // K = confidence threshold — higher means more games needed to diverge from average
+    const LB_POINTS = { win: 2, draw: 1, loss: 0 };
+    const LB_K = 10;
+
+    function calculateLeaderboard(players) {
+      const entries = players.map(p => {
+        const totalMatches = p.wins + p.losses + p.draws;
+        const totalPoints = p.wins * LB_POINTS.win + p.draws * LB_POINTS.draw + p.losses * LB_POINTS.loss;
+        const pointsPerMatch = totalMatches > 0 ? totalPoints / totalMatches : 0;
+        return { ...p, totalMatches, totalPoints, pointsPerMatch, leaderboardScore: 0 };
+      });
+      const totalMatchesAll = entries.reduce((sum, e) => sum + e.totalMatches, 0);
+      const totalPointsAll = entries.reduce((sum, e) => sum + e.totalPoints, 0);
+      const globalAvg = totalMatchesAll > 0 ? totalPointsAll / totalMatchesAll : 1.0;
+      for (const entry of entries) {
+        const { totalMatches: n, pointsPerMatch: playerAvg } = entry;
+        entry.leaderboardScore = (n / (n + LB_K)) * playerAvg + (LB_K / (n + LB_K)) * globalAvg;
+      }
+      entries.sort((a, b) => {
+        if (b.leaderboardScore !== a.leaderboardScore) return b.leaderboardScore - a.leaderboardScore;
+        const aWinPct = a.totalMatches > 0 ? a.wins / a.totalMatches : 0;
+        const bWinPct = b.totalMatches > 0 ? b.wins / b.totalMatches : 0;
+        return bWinPct - aWinPct;
+      });
+      return entries;
+    }
+
     function renderStandings(container) {
       // Build standings from all verified results
       const standings = {};
       // Include current user
       if (state.user) {
-        standings[state.user.id || 'me'] = { name: state.user.name, wins: 0, losses: 0, draws: 0, points: 0, isMe: true };
+        standings[state.user.id || 'me'] = { name: state.user.name, wins: 0, losses: 0, draws: 0, isMe: true };
       }
       // Include all matched players
       state.matches.forEach(m => {
-        if (!standings[m.id]) standings[m.id] = { name: m.name, wins: 0, losses: 0, draws: 0, points: 0 };
+        if (!standings[m.id]) standings[m.id] = { name: m.name, wins: 0, losses: 0, draws: 0 };
       });
 
       state.matchResults.filter(r => r.verified).forEach(r => {
         const myId = state.user.id || 'me';
-        if (!standings[myId]) standings[myId] = { name: state.user.name, wins: 0, losses: 0, draws: 0, points: 0, isMe: true };
+        if (!standings[myId]) standings[myId] = { name: state.user.name, wins: 0, losses: 0, draws: 0, isMe: true };
         if (!standings[r.opponentId]) {
           const opp = state.matches.find(m => m.id === r.opponentId);
-          standings[r.opponentId] = { name: opp ? opp.name : 'Unknown', wins: 0, losses: 0, draws: 0, points: 0 };
+          standings[r.opponentId] = { name: opp ? opp.name : 'Unknown', wins: 0, losses: 0, draws: 0 };
         }
 
         if (r.result === 'win') {
           standings[myId].wins++;
-          standings[myId].points += 2;
           standings[r.opponentId].losses++;
         } else if (r.result === 'loss') {
           standings[myId].losses++;
           standings[r.opponentId].wins++;
-          standings[r.opponentId].points += 2;
         } else {
           standings[myId].draws++;
-          standings[myId].points += 1;
           standings[r.opponentId].draws++;
-          standings[r.opponentId].points += 1;
         }
       });
 
-      const sorted = Object.entries(standings)
-        .map(([id, s]) => ({ id, ...s }))
-        .sort((a, b) => b.points - a.points || (b.wins - b.losses) - (a.wins - a.losses));
+      // Convert to array and apply Bayesian ranking
+      const playerRecords = Object.entries(standings).map(([id, s]) => ({ playerId: id, ...s }));
+      const ranked = calculateLeaderboard(playerRecords);
+      const sorted = ranked.map(r => ({
+        id: r.playerId,
+        name: r.name,
+        wins: r.wins,
+        losses: r.losses,
+        draws: r.draws,
+        points: r.totalPoints,
+        totalMatches: r.totalMatches,
+        leaderboardScore: r.leaderboardScore,
+        isMe: r.isMe || false
+      }));
 
       if (sorted.length === 0) {
         container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#127942;</div><h3>No standings yet</h3><p>Submit scores after playing a round with your matches!</p></div>';
@@ -2476,23 +2518,23 @@
           <div class="lb-stat">W</div>
           <div class="lb-stat">L</div>
           <div class="lb-stat">D</div>
-          <div class="lb-stat pts">PTS</div>
+          <div class="lb-stat pts">Score</div>
         </div>`;
 
       sorted.forEach((p, i) => {
         const rank = i + 1;
         const medal = rank === 1 ? '<span class="lb-rank-medal">&#129351;</span>' : rank === 2 ? '<span class="lb-rank-medal">&#129352;</span>' : rank === 3 ? '<span class="lb-rank-medal">&#129353;</span>' : rank;
-        const total = p.wins + p.losses + p.draws;
+        const scoreDisplay = p.totalMatches > 0 ? p.leaderboardScore.toFixed(2) : '-';
         html += `<div class="lb-row ${p.isMe ? 'me' : ''}">
           <div class="lb-rank">${medal}</div>
           <div class="lb-player">
             <div class="lb-player-name">${p.name}${p.isMe ? ' (You)' : ''}</div>
-            <div class="lb-player-record">${total} match${total !== 1 ? 'es' : ''} played</div>
+            <div class="lb-player-record">${p.totalMatches} match${p.totalMatches !== 1 ? 'es' : ''} · ${p.points} pts</div>
           </div>
           <div class="lb-stat">${p.wins}</div>
           <div class="lb-stat">${p.losses}</div>
           <div class="lb-stat">${p.draws}</div>
-          <div class="lb-stat pts">${p.points}</div>
+          <div class="lb-stat pts">${scoreDisplay}</div>
         </div>`;
       });
 
@@ -3168,8 +3210,176 @@
       return demoList.map(v => ({
         ...v,
         dist: haversineKm(coords[0], coords[1], v.lat, v.lng),
-        phone: '', website: ''
+        phone: '', website: getVenueWebsite(v.name, v.type)
       })).filter(v => v.dist <= radiusKm).sort((a, b) => a.dist - b.dist);
+    }
+
+    function getVenueWebsite(name, type) {
+      // Website lookup for known venues
+      const sites = {
+        // Toronto Municipal
+        'Don Valley Golf Course': 'https://www.toronto.ca/explore-enjoy/recreation/golf/',
+        'Humber Valley Golf Course': 'https://www.toronto.ca/explore-enjoy/recreation/golf/',
+        'Scarlett Woods Golf Course': 'https://www.toronto.ca/explore-enjoy/recreation/golf/',
+        'Dentonia Park Golf Course': 'https://www.toronto.ca/explore-enjoy/recreation/golf/',
+        "Tam O'Shanter Golf Course": 'https://www.toronto.ca/explore-enjoy/recreation/golf/',
+        // Toronto Public/Semi-Private
+        'Royal Woodbine Golf Club': 'https://www.royalwoodbine.com/',
+        'Centennial Park Golf Centre': 'https://www.centennialparkgolf.com/',
+        // Toronto Private
+        "St. George's Golf & Country Club": 'https://www.stgeorges.org/',
+        'Rosedale Golf Club': 'https://www.rosedalegolfclub.org/',
+        'Toronto Golf Club': 'https://www.torontogolfclub.com/',
+        'Lambton Golf & Country Club': 'https://www.lambtongolf.com/',
+        'Scarboro Golf & Country Club': 'https://www.scarborogolf.com/',
+        'Islington Golf Club': 'https://www.islingtongolf.com/',
+        'Weston Golf & Country Club': 'https://www.westongolf.com/',
+        'Donalda Club': 'https://www.donaldaclub.ca/',
+        'Oakdale Golf & Country Club': 'https://www.oakdalegolf.com/',
+        'Markland Wood Golf Club': 'https://www.marklandwood.com/',
+        'Toronto Hunt Club': 'https://www.torontohunt.com/',
+        // Mississauga
+        'Lakeview Golf Course': 'https://www.lakeviewgolf.ca/',
+        'BraeBen Golf Course': 'https://www.braebengolf.com/',
+        'Credit Valley Golf & Country Club': 'https://www.creditvalleygolf.com/',
+        'Mississaugua Golf & Country Club': 'https://www.mississauguagolf.com/',
+        // Brampton
+        'Lionhead Golf Club': 'https://www.lionheadgolf.com/',
+        'Streetsville Glen Golf Club': 'https://www.streetsvilleglen.com/',
+        'Peel Village Golf Course': 'https://www.peelvillagegolf.com/',
+        'Turnberry Golf Club': 'https://www.turnberrygolf.ca/',
+        'Brampton Golf Club': 'https://www.bramptongolfclub.com/',
+        // Oakville
+        'Glen Abbey Golf Course': 'https://www.clublink.ca/glen-abbey/',
+        // Burlington
+        'Hidden Lake Golf Club': 'https://www.hiddenlakegolf.com/',
+        'Indian Wells Golf Club': 'https://www.indianwellsgolf.com/',
+        'Crosswinds Golf & Country Club': 'https://www.crosswindsgolf.ca/',
+        'Tyandaga Golf Course': 'https://www.burlington.ca/tyandaga',
+        'Burlington Golf & Country Club': 'https://www.bgcc.ca/',
+        // Hamilton
+        'Hamilton Golf & Country Club': 'https://www.hamiltongolf.ca/',
+        'Dundas Valley Golf & Curling Club': 'https://www.dvgolf.com/',
+        // Milton / Georgetown
+        'RattleSnake Point Golf Club': 'https://www.clublink.ca/rattlesnake-point/',
+        "Piper's Heath Golf Club": 'https://www.pipersheath.com/',
+        'Granite Ridge Golf Club': 'https://www.graniteridgegolfclub.ca/',
+        'Wyldewood Golf & Country Club': 'https://www.wyldewoodgolf.com/',
+        'Royal Ontario Golf Club': 'https://www.royalontariogolf.com/',
+        'Georgetown Golf Club': 'https://www.georgetowngolf.ca/',
+        'Glencairn Golf Club': 'https://www.glencairngolfclub.ca/',
+        'The Club at North Halton': 'https://www.clubatnorthhalton.com/',
+        // Caledon
+        'TPC Toronto at Osprey Valley': 'https://www.tpctoronto.com/',
+        "Devil's Pulpit Golf Association": 'https://www.devilspulpit.com/',
+        'Caledon Woods Golf Club': 'https://www.caledonwoods.com/',
+        // Vaughan
+        'The National Golf Club of Canada': 'https://www.nationalgolf.ca/',
+        'Eagles Nest Golf Club': 'https://www.eaglesnestgolf.com/',
+        'Copper Creek Golf Club': 'https://www.coppercreekgolf.ca/',
+        // Markham
+        'Angus Glen Golf Club': 'https://www.angusglen.com/',
+        'Remington Parkview Golf & Country Club': 'https://www.remingtonparkview.com/',
+        'Bushwood Golf Club': 'https://www.bushwoodgolf.com/',
+        // Richmond Hill
+        'Richmond Hill Golf Club': 'https://www.richmondhillgolf.com/',
+        'Summit Golf & Country Club': 'https://www.summitgolf.ca/',
+        'DiamondBack Golf Club': 'https://www.diamondbackgolf.ca/',
+        // Thornhill
+        'Thornhill Golf & Country Club': 'https://www.thornhillclub.com/',
+        "Ladies' Golf Club of Toronto": 'https://www.ladiesgolfclub.com/',
+        'Maple Downs Golf & Country Club': 'https://www.mapledowns.com/',
+        // King City
+        'King Valley Golf Club': 'https://www.kingvalleygolf.com/',
+        "King's Riding Golf Club": 'https://www.kingsriding.com/',
+        'Carrying Place Golf & Country Club': 'https://www.carryingplace.com/',
+        // Aurora / Newmarket
+        'Magna Golf Club': 'https://www.magnagolf.ca/',
+        'Beacon Hall Golf Club': 'https://www.beaconhall.com/',
+        "St. Andrew's Valley Golf Club": 'https://www.standrewsvalley.com/',
+        'Westview Golf Club': 'https://www.westviewgolf.ca/',
+        // East Gwillimbury
+        'Pheasant Run Golf Club': 'https://www.pheasantrungolf.ca/',
+        'Silver Lakes Golf & Country Club': 'https://www.silverlakesgolf.ca/',
+        // Stouffville
+        'Station Creek Golf Club': 'https://www.stationcreek.com/',
+        'Emerald Hills Golf Club': 'https://www.emeraldhillsgolf.com/',
+        'Rolling Hills Golf Club': 'https://www.rollinghillsgolf.ca/',
+        'Sleepy Hollow Country Club': 'https://www.sleepyhollowcc.ca/',
+        'Meadowbrook Golf & Country Club': 'https://www.meadowbrookgolf.ca/',
+        // Pickering / Ajax
+        'Cherry Downs Golf Club': 'https://www.cherrydownsgolf.com/',
+        'Deer Creek Golf & Banquet Facility': 'https://www.deercreekgolf.com/',
+        'Pickering Glen Golf Club': 'https://www.pickeringglengolf.com/',
+        // Whitby / Oshawa
+        'Royal Ashburn Golf Club': 'https://www.royalashburn.com/',
+        'Oshawa Golf & Curling Club': 'https://www.oshawagolf.com/',
+        // Uxbridge
+        'Wooden Sticks Golf Club': 'https://www.woodensticks.com/',
+        'Wyndance Golf Club': 'https://www.wyndancegolf.com/',
+        'Coppinwood Golf Club': 'https://www.coppinwood.com/',
+        'Mill Pond Golf Course': 'https://www.millpondgolf.ca/',
+      };
+      // Simulator brand websites
+      const simBrands = {
+        'TARGET Indoor Golf': 'https://www.targetindoorgolf.com/',
+        'LFG Indoor Golf': 'https://www.lfgindoorgolf.ca/',
+        'Tracer Golf': 'https://www.tracergolf.ca/',
+        'Next Golf': 'https://www.nextgolf.ca/',
+        '6ix Iron Indoor Golf': 'https://www.6ixiron.com/',
+        'Shotgun Indoor Golf': 'https://www.shotgunindoorgolf.ca/',
+        'Clubhouse Indoor Golf': 'https://www.clubhouseindoorgolf.ca/',
+        'The Sand Trap': 'https://www.thesandtrap.ca/',
+        'PAR BAR': 'https://www.parbar.ca/',
+        'Swing Golf Lounge': 'https://www.swinggolflounge.ca/',
+        'SGreenGolf': 'https://www.sgreengolf.ca/',
+        'Gamer Golf': 'https://www.gamergolf.ca/',
+        'Ace Golf Bar': 'https://www.acegolfbar.com/',
+        'Parluxe Indoor Golf': 'https://www.parluxe.ca/',
+        'Moho Golf': 'https://www.mohogolf.ca/',
+        'Pace of Play': 'https://www.paceofplaygolf.ca/',
+        'Birdies Indoor Golf': 'https://www.birdiesindoorgolf.ca/',
+        'Golf It Up': 'https://www.golfitup.ca/',
+        'Born To Golf': 'https://www.borntogolf.ca/',
+        'EZ Golf': 'https://www.ezgolf.ca/',
+        'KStadium Golf': 'https://www.kstadiumgolf.com/',
+        'Golf6ix': 'https://www.golf6ix.ca/',
+        'The Launch Zone': 'https://www.thelaunchzone.ca/',
+        'PureGolf Sim': 'https://www.puregolfsim.ca/',
+        'Speedy Golf': 'https://www.speedygolf.ca/',
+        'Metro Golf Sportsplex': 'https://www.metrogolfsportsplex.com/',
+        'Midtown Golf': 'https://www.midtowngolf.ca/',
+        'Burloak Indoor Golf': 'https://www.burloakindoorgolf.ca/',
+        'PARfect Swing Golf Academy': 'https://www.parfectswing.ca/',
+        'Golfers Creek': 'https://www.golferscreek.ca/',
+        'FarAway Greens': 'https://www.farawaygreens.com/',
+        'SBF Golf': 'https://www.sbfgolf.ca/',
+        'Golf Almighty': 'https://www.golfalmighty.ca/',
+        'Tee Up Social': 'https://www.teeupsocial.ca/',
+        'The eZone': 'https://www.theezonevirtualgolf.ca/',
+        'Uptown Golf': 'https://www.uptowngolf.ca/',
+        'Obraleigh Golf': 'https://www.obraleighgolf.ca/',
+        'The Golf Lounge': 'https://www.thegolflounge.ca/',
+        'Club X Indoor Golf': 'https://www.clubxindoorgolf.com/',
+        'Athletify': 'https://www.athletify.ca/',
+        'Albatross Indoor Golf': 'https://www.albatrossindoorgolf.com/',
+        'Top Shot Golf': 'https://www.topshotgolf.ca/',
+        'The Links Golf & Sports Academy': 'https://www.thelinksgolf.ca/',
+        'The Argyle': 'https://www.theargyle.ca/',
+        'Hamilton Indoor Golf Sims': 'https://www.hamiltonindoorgolf.ca/',
+        'Par-Tee Putt': 'https://www.par-tee.ca/'
+      };
+
+      // Exact match for golf courses
+      if (sites[name]) return sites[name];
+      // Prefix match for simulator brands
+      if (type === 'simulator') {
+        for (const [brand, url] of Object.entries(simBrands)) {
+          if (name.startsWith(brand) || name.includes(brand)) return url;
+        }
+      }
+      // Google search fallback
+      return 'https://www.google.com/search?q=' + encodeURIComponent(name);
     }
 
     function renderVenues(venues) {
@@ -3198,10 +3408,15 @@
           : '<span class="venue-tag">Golf Course</span>';
         const accessTag = v.isPrivate ? '<span class="venue-tag private">Private</span>' : '<span class="venue-tag">Public</span>';
         const holesTag = v.holes ? `<span class="venue-tag">${v.holes} holes</span>` : '';
+        const ctaLabel = v.type === 'simulator' ? 'Reserve a Bay' : (v.isPrivate ? 'Visit Website' : 'Book a Tee Time');
+        const websiteLink = v.website
+          ? `<a href="${v.website}" target="_blank" rel="noopener" class="venue-link" onclick="event.stopPropagation()">${ctaLabel} &#8250;</a>`
+          : '';
         card.innerHTML = `
           <div class="venue-name">${v.name}</div>
           <div class="venue-meta">${v.dist.toFixed(1)} km away${v.phone ? ' · ' + v.phone : ''}</div>
           <div class="venue-tags">${typeTag}${v.type !== 'simulator' ? accessTag : ''}${holesTag}</div>
+          ${websiteLink}
         `;
         if (v.website) {
           card.style.cursor = 'pointer';
