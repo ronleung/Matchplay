@@ -975,14 +975,15 @@
 
     /* GPS Map Area */
     .lg-map-area {
-      height: 220px; background: #1a3a1a; position: relative; overflow: hidden;
+      height: 280px; background: #1a3a1a; position: relative; overflow: hidden;
       display: flex; align-items: center; justify-content: center;
+      touch-action: none; user-select: none; -webkit-user-select: none;
     }
     .lg-map-satellite {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      object-fit: cover; z-index: 0;
+      object-fit: cover; z-index: 0; pointer-events: none;
     }
-    .lg-map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+    .lg-map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; touch-action: none; }
     .lg-gps-overlay {
       position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 2;
       display: flex; justify-content: space-between; pointer-events: none;
@@ -992,6 +993,35 @@
       border-radius: 8px; font-size: 12px; font-weight: 600; backdrop-filter: blur(4px);
     }
     .lg-gps-badge.distance { font-size: 16px; }
+
+    /* Shot planner overlay */
+    .lg-shot-planner {
+      position: absolute; top: 8px; left: 8px; right: 8px; z-index: 3;
+      display: flex; justify-content: center; gap: 6px; pointer-events: none;
+    }
+    .lg-shot-badge {
+      background: rgba(0,0,0,0.8); color: white; padding: 5px 10px;
+      border-radius: 8px; font-size: 11px; font-weight: 600; backdrop-filter: blur(4px);
+      display: none;
+    }
+    .lg-shot-badge.visible { display: block; }
+    .lg-shot-badge .shot-label { color: rgba(255,255,255,0.6); font-size: 9px; display: block; }
+    .lg-shot-badge .shot-dist { font-size: 15px; font-weight: 800; }
+    .lg-shot-badge.to-target .shot-dist { color: #fbbf24; }
+    .lg-shot-badge.to-pin .shot-dist { color: #4ade80; }
+
+    /* Map controls */
+    .lg-map-controls {
+      position: absolute; top: 8px; right: 8px; z-index: 3;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .lg-map-btn {
+      width: 32px; height: 32px; border-radius: 8px; border: none;
+      background: rgba(0,0,0,0.7); color: white; font-size: 16px; font-weight: 700;
+      cursor: pointer; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
+    }
+    .lg-map-btn:active { background: rgba(0,0,0,0.9); }
+    .lg-map-btn.active { background: rgba(251,191,36,0.85); color: #000; }
 
     /* Scorecard Area */
     .lg-scorecard {
@@ -1382,9 +1412,25 @@
       </div>
 
       <!-- GPS Map -->
-      <div class="lg-map-area">
+      <div class="lg-map-area" id="lg-map-area">
         <img id="lg-map-satellite" class="lg-map-satellite" alt="" draggable="false">
         <canvas id="lg-map-canvas" class="lg-map-canvas"></canvas>
+        <div class="lg-shot-planner">
+          <div class="lg-shot-badge to-target" id="lg-shot-to-target">
+            <span class="shot-label">To target</span>
+            <span class="shot-dist" id="lg-shot-to-target-dist">--</span>
+          </div>
+          <div class="lg-shot-badge to-pin" id="lg-shot-to-pin">
+            <span class="shot-label">Target to pin</span>
+            <span class="shot-dist" id="lg-shot-to-pin-dist">--</span>
+          </div>
+        </div>
+        <div class="lg-map-controls">
+          <button class="lg-map-btn" onclick="mapZoomIn()" title="Zoom in">+</button>
+          <button class="lg-map-btn" onclick="mapZoomOut()" title="Zoom out">&minus;</button>
+          <button class="lg-map-btn" id="lg-target-btn" onclick="toggleShotPlanner()" title="Shot planner">&#127919;</button>
+          <button class="lg-map-btn" onclick="resetMapView()" title="Reset view">&#8634;</button>
+        </div>
         <div class="lg-gps-overlay">
           <div class="lg-gps-badge" id="lg-gps-par">Par 4</div>
           <div class="lg-gps-badge distance" id="lg-gps-dist">-- yds</div>
@@ -1402,7 +1448,8 @@
         <button class="btn btn-outline" id="lg-save-btn" onclick="saveHoleScores()">Save Hole</button>
         <button class="btn btn-primary" id="lg-next-btn" onclick="saveAndNextHole()">Next Hole &#9654;</button>
       </div>
-      <div style="text-align:center;padding:4px 0 8px;">
+      <div style="text-align:center;padding:4px 0 8px;display:flex;justify-content:center;gap:16px;">
+        <button class="btn-ghost" style="font-size:11px;color:var(--text-muted);" onclick="skipHole()">Skip Hole</button>
         <button class="btn-ghost" style="font-size:11px;color:var(--text-muted);" onclick="confirmQuitGame()">Quit Round</button>
       </div>
     </div>
@@ -3909,6 +3956,12 @@
       $('lg-hole-meta').textContent = `Par ${hd.par} · ${hd.yards} yds · ${gameState.course.name}`;
       $('lg-gps-par').textContent = `Par ${hd.par}`;
 
+      // Reset map view on hole change
+      mapView = { zoom: 1, panX: 0, panY: 0 };
+      shotTarget = null;
+      $('lg-shot-to-target').classList.remove('visible');
+      $('lg-shot-to-pin').classList.remove('visible');
+
       // Simulate GPS position for current hole if using simulated GPS
       if (currentGpsPos && currentGpsPos.simulated) {
         simulateGpsMovement();
@@ -4146,6 +4199,19 @@
       }
     }
 
+    function skipHole() {
+      if (!gameState) return;
+      if (gameState.currentHole >= gameState.holes) {
+        showRoundComplete();
+        return;
+      }
+      // Mark skipped hole with null scores (already default) and advance
+      gameState.currentHole++;
+      saveGameState();
+      renderLiveGame();
+      showToast('Hole skipped');
+    }
+
     function prevHole() {
       if (!gameState || gameState.currentHole <= 1) return;
       gameState.currentHole--;
@@ -4311,18 +4377,260 @@
       const distYards = Math.round(distMeters * 1.09361);
       $('lg-gps-dist').textContent = `${distYards} yds to pin`;
 
-      // Redraw map with player position
-      drawHoleMap(hd);
+      // Redraw canvas overlay (don't reload satellite)
+      redrawMap();
+      // Update shot planner distances if active
+      if (shotPlannerActive && shotTarget) updateShotPlannerDistances();
     }
 
-    // ---- Hole Map Drawing (Canvas) ----
-    // Google Maps Static API key — set this to enable satellite hole maps
+    // ---- Hole Map Drawing (Interactive Canvas with Pinch-Zoom/Pan) ----
     const GMAPS_API_KEY = '';
-
-    // Cache for satellite images to avoid re-fetching
     let lastSatelliteUrl = '';
 
+    // Map view state for pinch-zoom and pan
+    let mapView = { zoom: 1, panX: 0, panY: 0 };
+    // Base bounds (unzoomed) for coordinate mapping
+    let mapBaseBounds = { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0, latRange: 0.001, lngRange: 0.001 };
+    // Shot planner state
+    let shotPlannerActive = false;
+    let shotTarget = null; // { lat, lng }
+    // Touch gesture state
+    let mapTouchState = { touches: [], lastDist: 0, lastCenter: null, isPanning: false, startPanX: 0, startPanY: 0, tapTimer: null };
+
+    function initMapGestures() {
+      const area = $('lg-map-area');
+      if (!area || area._gesturesInit) return;
+      area._gesturesInit = true;
+
+      area.addEventListener('touchstart', onMapTouchStart, { passive: false });
+      area.addEventListener('touchmove', onMapTouchMove, { passive: false });
+      area.addEventListener('touchend', onMapTouchEnd, { passive: false });
+      area.addEventListener('touchcancel', onMapTouchEnd, { passive: false });
+
+      // Mouse fallback for desktop
+      area.addEventListener('wheel', onMapWheel, { passive: false });
+      area.addEventListener('mousedown', onMapMouseDown);
+      area.addEventListener('mousemove', onMapMouseMove);
+      area.addEventListener('mouseup', onMapMouseUp);
+      area.addEventListener('click', onMapClick);
+    }
+
+    function onMapTouchStart(e) {
+      e.preventDefault();
+      const touches = Array.from(e.touches);
+      mapTouchState.touches = touches;
+
+      if (touches.length === 2) {
+        // Pinch start
+        mapTouchState.lastDist = getTouchDist(touches);
+        mapTouchState.lastCenter = getTouchCenter(touches);
+        clearTimeout(mapTouchState.tapTimer);
+      } else if (touches.length === 1) {
+        // Pan start or potential tap
+        mapTouchState.isPanning = false;
+        mapTouchState.startPanX = touches[0].clientX;
+        mapTouchState.startPanY = touches[0].clientY;
+        mapTouchState.lastCenter = { x: touches[0].clientX, y: touches[0].clientY };
+        mapTouchState.tapTimer = setTimeout(() => { mapTouchState.isPanning = true; }, 0);
+      }
+    }
+
+    function onMapTouchMove(e) {
+      e.preventDefault();
+      const touches = Array.from(e.touches);
+
+      if (touches.length === 2) {
+        // Pinch zoom
+        const dist = getTouchDist(touches);
+        const center = getTouchCenter(touches);
+        if (mapTouchState.lastDist > 0) {
+          const scale = dist / mapTouchState.lastDist;
+          mapView.zoom = Math.max(0.5, Math.min(8, mapView.zoom * scale));
+        }
+        // Pan during pinch
+        if (mapTouchState.lastCenter) {
+          mapView.panX += center.x - mapTouchState.lastCenter.x;
+          mapView.panY += center.y - mapTouchState.lastCenter.y;
+        }
+        mapTouchState.lastDist = dist;
+        mapTouchState.lastCenter = center;
+        redrawMap();
+      } else if (touches.length === 1) {
+        // Pan
+        mapTouchState.isPanning = true;
+        const dx = touches[0].clientX - mapTouchState.lastCenter.x;
+        const dy = touches[0].clientY - mapTouchState.lastCenter.y;
+        mapView.panX += dx;
+        mapView.panY += dy;
+        mapTouchState.lastCenter = { x: touches[0].clientX, y: touches[0].clientY };
+        redrawMap();
+      }
+    }
+
+    function onMapTouchEnd(e) {
+      e.preventDefault();
+      const prevTouches = mapTouchState.touches;
+      mapTouchState.touches = Array.from(e.touches);
+
+      // Detect tap (short touch, minimal movement)
+      if (e.changedTouches.length === 1 && prevTouches.length === 1 && !mapTouchState.isPanning) {
+        const t = e.changedTouches[0];
+        const dx = Math.abs(t.clientX - mapTouchState.startPanX);
+        const dy = Math.abs(t.clientY - mapTouchState.startPanY);
+        if (dx < 10 && dy < 10) {
+          handleMapTap(t.clientX, t.clientY);
+        }
+      } else if (prevTouches.length === 1) {
+        // Check total pan distance - if very small, treat as tap
+        const t = e.changedTouches[0];
+        const dx = Math.abs(t.clientX - mapTouchState.startPanX);
+        const dy = Math.abs(t.clientY - mapTouchState.startPanY);
+        if (dx < 8 && dy < 8) {
+          handleMapTap(t.clientX, t.clientY);
+        }
+      }
+
+      mapTouchState.lastDist = 0;
+      mapTouchState.lastCenter = null;
+      mapTouchState.isPanning = false;
+      clearTimeout(mapTouchState.tapTimer);
+      loadSatelliteForCurrentView();
+    }
+
+    // Mouse fallback
+    let mouseDown = false, mouseStartX = 0, mouseStartY = 0, mouseMoved = false;
+    function onMapMouseDown(e) {
+      mouseDown = true; mouseMoved = false;
+      mouseStartX = e.clientX; mouseStartY = e.clientY;
+      mapTouchState.lastCenter = { x: e.clientX, y: e.clientY };
+    }
+    function onMapMouseMove(e) {
+      if (!mouseDown) return;
+      mouseMoved = true;
+      mapView.panX += e.clientX - mapTouchState.lastCenter.x;
+      mapView.panY += e.clientY - mapTouchState.lastCenter.y;
+      mapTouchState.lastCenter = { x: e.clientX, y: e.clientY };
+      redrawMap();
+    }
+    function onMapMouseUp(e) {
+      mouseDown = false;
+      mapTouchState.lastCenter = null;
+      if (mouseMoved) loadSatelliteForCurrentView();
+    }
+    function onMapClick(e) {
+      if (mouseMoved) { mouseMoved = false; return; }
+      handleMapTap(e.clientX, e.clientY);
+    }
+    function onMapWheel(e) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      mapView.zoom = Math.max(0.5, Math.min(8, mapView.zoom * delta));
+      redrawMap();
+      clearTimeout(mapTouchState._wheelDebounce);
+      mapTouchState._wheelDebounce = setTimeout(() => loadSatelliteForCurrentView(), 300);
+    }
+
+    function getTouchDist(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    function getTouchCenter(touches) {
+      return { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 };
+    }
+
+    function handleMapTap(clientX, clientY) {
+      if (!shotPlannerActive || !gameState) return;
+      const canvas = $('lg-map-canvas');
+      const rect = canvas.getBoundingClientRect();
+      const sx = clientX - rect.left;
+      const sy = clientY - rect.top;
+      // Convert screen coords back to lat/lng using current view transform
+      const coords = screenToLatLng(sx, sy, rect.width, rect.height);
+      if (coords) {
+        shotTarget = coords;
+        redrawMap();
+        updateShotPlannerDistances();
+      }
+    }
+
+    function screenToLatLng(sx, sy, W, H) {
+      const b = mapBaseBounds;
+      // Reverse the transform: screen = (geo * zoom) + pan + center
+      const cx = W / 2 + mapView.panX;
+      const cy = H / 2 + mapView.panY;
+      const geoX = (sx - cx) / mapView.zoom + W / 2;
+      const geoY = (sy - cy) / mapView.zoom + H / 2;
+      const lng = b.minLng + (geoX / W) * b.lngRange;
+      const lat = b.maxLat - (geoY / H) * b.latRange;
+      return { lat, lng };
+    }
+
+    function toggleShotPlanner() {
+      shotPlannerActive = !shotPlannerActive;
+      const btn = $('lg-target-btn');
+      if (btn) btn.classList.toggle('active', shotPlannerActive);
+      if (!shotPlannerActive) {
+        shotTarget = null;
+        $('lg-shot-to-target').classList.remove('visible');
+        $('lg-shot-to-pin').classList.remove('visible');
+      }
+      redrawMap();
+    }
+
+    function updateShotPlannerDistances() {
+      if (!shotTarget || !gameState) return;
+      const hd = gameState.holeData[gameState.currentHole - 1];
+
+      // Distance from player (or tee) to target
+      const fromLat = currentGpsPos ? currentGpsPos.lat : hd.teeLat;
+      const fromLng = currentGpsPos ? currentGpsPos.lng : hd.teeLng;
+      const toTargetM = haversineKm(fromLat, fromLng, shotTarget.lat, shotTarget.lng) * 1000;
+      const toTargetYds = Math.round(toTargetM * 1.09361);
+
+      // Distance from target to pin
+      const toPinM = haversineKm(shotTarget.lat, shotTarget.lng, hd.greenLat, hd.greenLng) * 1000;
+      const toPinYds = Math.round(toPinM * 1.09361);
+
+      $('lg-shot-to-target-dist').textContent = `${toTargetYds} yds`;
+      $('lg-shot-to-pin-dist').textContent = `${toPinYds} yds`;
+      $('lg-shot-to-target').classList.add('visible');
+      $('lg-shot-to-pin').classList.add('visible');
+    }
+
+    function mapZoomIn() {
+      mapView.zoom = Math.min(8, mapView.zoom * 1.4);
+      redrawMap();
+      loadSatelliteForCurrentView();
+    }
+    function mapZoomOut() {
+      mapView.zoom = Math.max(0.5, mapView.zoom / 1.4);
+      redrawMap();
+      loadSatelliteForCurrentView();
+    }
+    function resetMapView() {
+      mapView = { zoom: 1, panX: 0, panY: 0 };
+      shotTarget = null;
+      $('lg-shot-to-target').classList.remove('visible');
+      $('lg-shot-to-pin').classList.remove('visible');
+      if (gameState) {
+        const hd = gameState.holeData[gameState.currentHole - 1];
+        drawHoleMap(hd);
+      }
+    }
+
+    function redrawMap() {
+      if (!gameState) return;
+      const hd = gameState.holeData[gameState.currentHole - 1];
+      drawHoleMapCanvas(hd, false); // Redraw canvas only, don't reload satellite
+    }
+
     function drawHoleMap(holeData) {
+      drawHoleMapCanvas(holeData, true);
+      initMapGestures();
+    }
+
+    function drawHoleMapCanvas(holeData, loadSatellite) {
       const canvas = $('lg-map-canvas');
       const satImg = $('lg-map-satellite');
       if (!canvas) return;
@@ -4337,55 +4645,74 @@
       ctx.scale(dpr, dpr);
       const W = rect.width, H = rect.height;
 
-      // Calculate bounds — center between tee and green with padding
-      const centerLat = (holeData.teeLat + holeData.greenLat) / 2;
-      const centerLng = (holeData.teeLng + holeData.greenLng) / 2;
-
+      // Calculate base bounds (unzoomed) — tee to green with padding
       const points = [
         { lat: holeData.teeLat, lng: holeData.teeLng },
         { lat: holeData.greenLat, lng: holeData.greenLng }
       ];
       if (currentGpsPos) points.push({ lat: currentGpsPos.lat, lng: currentGpsPos.lng });
+      if (shotTarget) points.push({ lat: shotTarget.lat, lng: shotTarget.lng });
 
       const lats = points.map(p => p.lat);
       const lngs = points.map(p => p.lng);
-      const padFactor = 0.3; // Extra 30% around edges
+      const padFactor = 0.3;
       const rawLatRange = Math.max(...lats) - Math.min(...lats) || 0.001;
       const rawLngRange = Math.max(...lngs) - Math.min(...lngs) || 0.001;
-      const minLat = Math.min(...lats) - rawLatRange * padFactor;
-      const maxLat = Math.max(...lats) + rawLatRange * padFactor;
-      const minLng = Math.min(...lngs) - rawLngRange * padFactor;
-      const maxLng = Math.max(...lngs) + rawLngRange * padFactor;
-      const latRange = maxLat - minLat;
-      const lngRange = maxLng - minLng;
 
+      if (loadSatellite) {
+        // Only reset base bounds on full redraw (hole change)
+        mapBaseBounds.minLat = Math.min(...lats) - rawLatRange * padFactor;
+        mapBaseBounds.maxLat = Math.max(...lats) + rawLatRange * padFactor;
+        mapBaseBounds.minLng = Math.min(...lngs) - rawLngRange * padFactor;
+        mapBaseBounds.maxLng = Math.max(...lngs) + rawLngRange * padFactor;
+        mapBaseBounds.latRange = mapBaseBounds.maxLat - mapBaseBounds.minLat;
+        mapBaseBounds.lngRange = mapBaseBounds.maxLng - mapBaseBounds.minLng;
+      }
+
+      const b = mapBaseBounds;
+
+      // toScreen: geo coords → screen coords with zoom and pan applied
       function toScreen(lat, lng) {
-        const x = ((lng - minLng) / lngRange) * W;
-        const y = ((maxLat - lat) / latRange) * H;
+        const baseX = ((lng - b.minLng) / b.lngRange) * W;
+        const baseY = ((b.maxLat - lat) / b.latRange) * H;
+        // Apply zoom from center + pan
+        const cx = W / 2 + mapView.panX;
+        const cy = H / 2 + mapView.panY;
+        const x = cx + (baseX - W / 2) * mapView.zoom;
+        const y = cy + (baseY - H / 2) * mapView.zoom;
         return [x, y];
       }
 
-      // Load satellite imagery — pass exact bounds so image aligns with canvas overlay
-      loadSatelliteImage(satImg, minLat, maxLat, minLng, maxLng, W, H);
+      // Load satellite imagery for current view
+      if (loadSatellite) {
+        loadSatelliteForCurrentView();
+      }
 
-      // Clear canvas overlay (transparent)
+      // Apply zoom/pan transform to satellite image
+      const satCx = W / 2 + mapView.panX;
+      const satCy = H / 2 + mapView.panY;
+      satImg.style.transformOrigin = '50% 50%';
+      satImg.style.transform = `translate(${mapView.panX}px, ${mapView.panY}px) scale(${mapView.zoom})`;
+
+      // Clear canvas overlay
       ctx.clearRect(0, 0, W, H);
 
       const [teeX, teeY] = toScreen(holeData.teeLat, holeData.teeLng);
       const [greenX, greenY] = toScreen(holeData.greenLat, holeData.greenLng);
+      const zScale = Math.max(0.6, Math.min(2, mapView.zoom));
 
-      // Semi-transparent fairway path overlay (so it's visible on satellite)
+      // Semi-transparent fairway path
       ctx.beginPath();
       ctx.moveTo(teeX, teeY);
       ctx.lineTo(greenX, greenY);
       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 20;
+      ctx.lineWidth = 20 * zScale;
       ctx.lineCap = 'round';
       ctx.stroke();
 
-      // Green circle outline
+      // Green circle
       ctx.beginPath();
-      ctx.arc(greenX, greenY, 14, 0, Math.PI * 2);
+      ctx.arc(greenX, greenY, 14 * zScale, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(255,255,255,0.6)';
       ctx.lineWidth = 2;
       ctx.stroke();
@@ -4393,25 +4720,26 @@
       ctx.fill();
 
       // Pin flag
+      const fs = zScale;
       ctx.beginPath();
-      ctx.moveTo(greenX, greenY - 16);
-      ctx.lineTo(greenX, greenY + 2);
+      ctx.moveTo(greenX, greenY - 16 * fs);
+      ctx.lineTo(greenX, greenY + 2 * fs);
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(greenX, greenY - 16);
-      ctx.lineTo(greenX + 9, greenY - 12);
-      ctx.lineTo(greenX, greenY - 8);
+      ctx.moveTo(greenX, greenY - 16 * fs);
+      ctx.lineTo(greenX + 9 * fs, greenY - 12 * fs);
+      ctx.lineTo(greenX, greenY - 8 * fs);
       ctx.fillStyle = '#ef4444';
       ctx.fill();
 
       // Tee box marker
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillRect(teeX - 7, teeY - 3, 14, 6);
+      ctx.fillRect(teeX - 7 * fs, teeY - 3 * fs, 14 * fs, 6 * fs);
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(teeX - 7, teeY - 3, 14, 6);
+      ctx.strokeRect(teeX - 7 * fs, teeY - 3 * fs, 14 * fs, 6 * fs);
 
       // Yardage markers
       const markers = [200, 150, 100, 50];
@@ -4422,39 +4750,36 @@
         const mx = teeX + (greenX - teeX) * pct;
         const my = teeY + (greenY - teeY) * pct;
         ctx.beginPath();
-        ctx.arc(mx, my, 3, 0, Math.PI * 2);
+        ctx.arc(mx, my, 3 * fs, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.fill();
-        // Text with shadow for satellite readability
-        ctx.font = 'bold 9px system-ui';
+        ctx.font = `bold ${Math.round(9 * fs)}px system-ui`;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillText(yds + '', mx + 1, my - 6);
+        ctx.fillText(yds + '', mx + 1, my - 6 * fs);
         ctx.fillStyle = '#fff';
-        ctx.fillText(yds + '', mx, my - 7);
+        ctx.fillText(yds + '', mx, my - 7 * fs);
       });
 
-      // Tee label with shadow
-      ctx.font = 'bold 10px system-ui';
+      // Tee label
+      ctx.font = `bold ${Math.round(10 * fs)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillText('TEE', teeX + 1, teeY + 19);
+      ctx.fillText('TEE', teeX + 1, teeY + 19 * fs);
       ctx.fillStyle = '#fff';
-      ctx.fillText('TEE', teeX, teeY + 18);
+      ctx.fillText('TEE', teeX, teeY + 18 * fs);
 
       // Player position (GPS dot)
       if (currentGpsPos) {
         const [px, py] = toScreen(currentGpsPos.lat, currentGpsPos.lng);
 
-        // Accuracy circle
         ctx.beginPath();
-        ctx.arc(px, py, 14, 0, Math.PI * 2);
+        ctx.arc(px, py, 14 * fs, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(66,133,244,0.25)';
         ctx.fill();
 
-        // Player dot
         ctx.beginPath();
-        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.arc(px, py, 7 * fs, 0, Math.PI * 2);
         ctx.fillStyle = '#4285f4';
         ctx.fill();
         ctx.strokeStyle = '#fff';
@@ -4471,21 +4796,119 @@
         ctx.stroke();
         ctx.setLineDash([]);
       }
+
+      // Shot planner target
+      if (shotPlannerActive && shotTarget) {
+        const [tx, ty] = toScreen(shotTarget.lat, shotTarget.lng);
+        const fromLat = currentGpsPos ? currentGpsPos.lat : holeData.teeLat;
+        const fromLng = currentGpsPos ? currentGpsPos.lng : holeData.teeLng;
+        const [fx, fy] = toScreen(fromLat, fromLng);
+
+        // Line from player/tee to target (yellow dashed)
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(tx, ty);
+        ctx.strokeStyle = 'rgba(251,191,36,0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Line from target to pin (green dashed)
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(greenX, greenY);
+        ctx.strokeStyle = 'rgba(74,222,128,0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Target marker - crosshair ring
+        ctx.beginPath();
+        ctx.arc(tx, ty, 10 * fs, 0, Math.PI * 2);
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(tx, ty, 3 * fs, 0, Math.PI * 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fill();
+
+        // Crosshair lines
+        const cr = 14 * fs;
+        ctx.beginPath();
+        ctx.moveTo(tx - cr, ty); ctx.lineTo(tx - 6 * fs, ty);
+        ctx.moveTo(tx + 6 * fs, ty); ctx.lineTo(tx + cr, ty);
+        ctx.moveTo(tx, ty - cr); ctx.lineTo(tx, ty - 6 * fs);
+        ctx.moveTo(tx, ty + 6 * fs); ctx.lineTo(tx, ty + cr);
+        ctx.strokeStyle = 'rgba(251,191,36,0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Inline distance labels on the lines
+        const toTargetM = haversineKm(fromLat, fromLng, shotTarget.lat, shotTarget.lng) * 1000;
+        const toTargetYds = Math.round(toTargetM * 1.09361);
+        const toPinM = haversineKm(shotTarget.lat, shotTarget.lng, holeData.greenLat, holeData.greenLng) * 1000;
+        const toPinYds = Math.round(toPinM * 1.09361);
+
+        // Label on player-to-target line
+        const midX1 = (fx + tx) / 2, midY1 = (fy + ty) / 2;
+        drawMapLabel(ctx, `${toTargetYds}`, midX1, midY1, 'rgba(251,191,36,0.9)', fs);
+
+        // Label on target-to-pin line
+        const midX2 = (tx + greenX) / 2, midY2 = (ty + greenY) / 2;
+        drawMapLabel(ctx, `${toPinYds}`, midX2, midY2, 'rgba(74,222,128,0.9)', fs);
+      }
+    }
+
+    function drawMapLabel(ctx, text, x, y, color, scale) {
+      const fontSize = Math.round(11 * scale);
+      ctx.font = `bold ${fontSize}px system-ui`;
+      const tw = ctx.measureText(text).width;
+      const pad = 4 * scale;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.beginPath();
+      ctx.roundRect(x - tw / 2 - pad, y - fontSize / 2 - pad, tw + pad * 2, fontSize + pad * 2, 4 * scale);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x, y);
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    function loadSatelliteForCurrentView() {
+      const satImg = $('lg-map-satellite');
+      const canvas = $('lg-map-canvas');
+      if (!satImg || !canvas) return;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const W = rect.width, H = rect.height;
+      const b = mapBaseBounds;
+
+      // Compute the visible bounds accounting for zoom and pan
+      const cx = W / 2 + mapView.panX;
+      const cy = H / 2 + mapView.panY;
+      // Visible screen corners in base-geo-space
+      const geoLeft = (0 - cx) / mapView.zoom + W / 2;
+      const geoRight = (W - cx) / mapView.zoom + W / 2;
+      const geoTop = (0 - cy) / mapView.zoom + H / 2;
+      const geoBottom = (H - cy) / mapView.zoom + H / 2;
+
+      // For satellite image, always load the base bounds (zoom is handled by CSS transform)
+      loadSatelliteImage(satImg, b.minLat, b.maxLat, b.minLng, b.maxLng, W, H);
     }
 
     function loadSatelliteImage(imgEl, minLat, maxLat, minLng, maxLng, viewW, viewH) {
-      const centerLat = (minLat + maxLat) / 2;
-      const centerLng = (minLng + maxLng) / 2;
-
-      const imgW = Math.min(640, Math.round(viewW * 2)); // 2x for retina, max 640
-      const imgH = Math.min(640, Math.round(viewH * 2));
+      const imgW = Math.min(1024, Math.round(viewW * 2));
+      const imgH = Math.min(1024, Math.round(viewH * 2));
 
       let url;
       if (GMAPS_API_KEY) {
-        // Google Maps Static API — calculate zoom from bounding box
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLng = (minLng + maxLng) / 2;
         const latSpan = maxLat - minLat;
         const lngSpan = maxLng - minLng;
-        // Approximate zoom: at zoom 17, ~0.003 degrees visible
         let zoom = 17;
         const maxSpan = Math.max(latSpan, lngSpan);
         if (maxSpan > 0.012) zoom = 15;
@@ -4494,7 +4917,6 @@
         else zoom = 18;
         url = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=${imgW}x${imgH}&maptype=satellite&key=${GMAPS_API_KEY}`;
       } else {
-        // Esri World Imagery — pass exact bounding box so satellite aligns with overlay
         const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
         url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=${imgW},${imgH}&imageSR=4326&format=jpg&f=image`;
       }
