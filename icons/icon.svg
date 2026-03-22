@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="102" fill="#0f172a"/>
-  <circle cx="256" cy="215" r="113" fill="#6366f1"/>
-  <line x1="256" y1="102" x2="256" y2="333" stroke="#22c55e" stroke-width="10"/>
-  <polygon points="256,102 348,143 256,184" fill="#22c55e"/>
-  <text x="256" y="400" text-anchor="middle" fill="#f1f5f9" font-family="-apple-system,sans-serif" font-weight="bold" font-size="56">MATCH</text>
-  <text x="256" y="462" text-anchor="middle" fill="#f1f5f9" font-family="-apple-system,sans-serif" font-weight="bold" font-size="56">PLAY</text>
+  <rect width="512" height="512" rx="102" fill="#2EAD56"/>
+  <circle cx="256" cy="215" r="113" fill="#ffffff"/>
+  <line x1="256" y1="102" x2="256" y2="333" stroke="#249847" stroke-width="10"/>
+  <polygon points="256,102 348,143 256,184" fill="#249847"/>
+  <text x="256" y="400" text-anchor="middle" fill="#ffffff" font-family="-apple-system,sans-serif" font-weight="bold" font-size="56">MATCH</text>
+  <text x="256" y="462" text-anchor="middle" fill="#ffffff" font-family="-apple-system,sans-serif" font-weight="bold" font-size="56">PLAY</text>
 </svg>

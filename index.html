@@ -7,10 +7,10 @@
 
   <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Match Play">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#2EAD56">
 
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
@@ -19,19 +19,19 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --primary: #6366f1;
-      --primary-dark: #4f46e5;
-      --primary-light: #818cf8;
-      --bg: #0f172a;
-      --bg-card: #1e293b;
-      --bg-input: #334155;
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
-      --accent-green: #22c55e;
+      --primary: #2EAD56;
+      --primary-dark: #249847;
+      --primary-light: #34C264;
+      --bg: #f5f5f5;
+      --bg-card: #ffffff;
+      --bg-input: #eef0f2;
+      --text: #1a1a1a;
+      --text-muted: #6b7280;
+      --accent-green: #2EAD56;
       --accent-red: #ef4444;
       --accent-yellow: #eab308;
       --radius: 12px;
-      --shadow: 0 4px 24px rgba(0,0,0,0.3);
+      --shadow: 0 2px 12px rgba(0,0,0,0.08);
     }
 
     body {
@@ -71,21 +71,19 @@
       padding: 16px 20px;
       padding-left: max(20px, env(safe-area-inset-left));
       padding-right: max(20px, env(safe-area-inset-right));
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(0,0,0,0.08);
     }
     .header h1 {
       font-size: 20px;
       font-weight: 700;
-      background: linear-gradient(135deg, var(--primary-light), var(--accent-green));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--primary);
     }
     .header-actions { display: flex; gap: 8px; }
 
     /* ---- Bottom Nav ---- */
     .bottom-nav {
       display: flex;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid rgba(0,0,0,0.08);
       background: var(--bg-card);
       position: sticky;
       bottom: 0;
@@ -131,7 +129,7 @@
       color: var(--primary-light);
       border: 1.5px solid var(--primary);
     }
-    .btn-outline:hover { background: rgba(99,102,241,0.1); }
+    .btn-outline:hover { background: rgba(46,173,86,0.08); }
     .btn-ghost { background: transparent; color: var(--text-muted); border: none; padding: 8px; }
     .btn-icon {
       width: 52px; height: 52px;
@@ -181,9 +179,7 @@
     .auth-logo {
       font-size: 48px;
       font-weight: 800;
-      background: linear-gradient(135deg, var(--primary-light), var(--accent-green));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--primary);
     }
     .auth-subtitle { color: var(--text-muted); font-size: 15px; text-align: center; }
     .auth-form { width: 100%; display: flex; flex-direction: column; gap: 16px; }
@@ -193,7 +189,7 @@
       color: var(--text-muted); font-size: 13px;
     }
     .auth-divider::before, .auth-divider::after {
-      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1);
+      content: ''; flex: 1; height: 1px; background: rgba(0,0,0,0.1);
     }
 
     /* ---- Profile Setup ---- */
@@ -210,7 +206,7 @@
       font-size: 36px;
       color: var(--text-muted);
       align-self: center;
-      border: 2px dashed rgba(255,255,255,0.15);
+      border: 2px dashed rgba(0,0,0,0.12);
       overflow: hidden;
     }
     .avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
@@ -224,7 +220,7 @@
     }
     .loc-mode-btn.active {
       border-color: var(--primary); color: var(--primary-light);
-      background: rgba(99,102,241,0.15);
+      background: rgba(46,173,86,0.12);
     }
     .budget-hint { font-size: 11px; color: var(--text-muted); opacity: 0.7; margin-top: 2px; }
     .gps-status {
@@ -252,7 +248,8 @@
       background: var(--bg-card);
       border-radius: 16px;
       overflow: hidden;
-      box-shadow: var(--shadow);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.1);
+      border: 1px solid rgba(0,0,0,0.06);
       position: absolute;
       transition: transform 0.4s ease, opacity 0.4s ease;
       cursor: grab;
@@ -359,7 +356,7 @@
       cursor: pointer;
       transition: background 0.15s;
     }
-    .match-item:hover { background: rgba(255,255,255,0.03); }
+    .match-item:hover { background: rgba(0,0,0,0.03); }
     .match-item .avatar {
       width: 50px; height: 50px;
       border-radius: 50%;
@@ -398,7 +395,7 @@
       align-items: center;
       gap: 12px;
       padding: 14px 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(0,0,0,0.08);
     }
     .chat-header .avatar {
       width: 36px; height: 36px;
@@ -445,7 +442,7 @@
       display: flex;
       gap: 8px;
       padding: 12px 16px;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid rgba(0,0,0,0.08);
       background: var(--bg-card);
     }
     .chat-input-bar input {
@@ -477,6 +474,8 @@
       border-radius: var(--radius);
       padding: 24px;
       text-align: center;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
     .profile-card .avatar {
       width: 80px; height: 80px;
@@ -503,6 +502,8 @@
       background: var(--bg-card);
       border-radius: var(--radius);
       overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
     .settings-item {
       display: flex;
@@ -512,8 +513,8 @@
       cursor: pointer;
       transition: background 0.15s;
     }
-    .settings-item:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.04); }
-    .settings-item:hover { background: rgba(255,255,255,0.03); }
+    .settings-item:not(:last-child) { border-bottom: 1px solid rgba(0,0,0,0.06); }
+    .settings-item:hover { background: rgba(0,0,0,0.03); }
     .settings-item span { font-size: 14px; }
     .settings-item .arrow { color: var(--text-muted); }
 
@@ -537,6 +538,8 @@
       max-height: 85vh;
       overflow-y: auto;
       animation: slideUp 0.3s ease;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
     }
     @keyframes slideUp {
       from { transform: translateY(100%); }
@@ -595,7 +598,7 @@
     .gender-option.selected {
       border-color: var(--primary);
       color: var(--primary-light);
-      background: rgba(99,102,241,0.15);
+      background: rgba(46,173,86,0.12);
     }
     .range-slider-container {
       position: relative;
@@ -620,7 +623,7 @@
       background: var(--primary-light);
       cursor: pointer;
       pointer-events: all;
-      border: 2px solid var(--bg-card);
+      border: 2px solid #ffffff;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     }
     .range-slider-container input[type="range"]::-moz-range-thumb {
@@ -630,7 +633,7 @@
       background: var(--primary-light);
       cursor: pointer;
       pointer-events: all;
-      border: 2px solid var(--bg-card);
+      border: 2px solid #ffffff;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     }
     .range-track {
@@ -665,7 +668,7 @@
     .budget-preset.selected {
       border-color: var(--primary);
       color: var(--primary-light);
-      background: rgba(99,102,241,0.15);
+      background: rgba(46,173,86,0.12);
     }
     .filter-actions {
       display: flex;
@@ -682,8 +685,8 @@
     .active-filter-tag {
       font-size: 11px;
       padding: 4px 10px;
-      background: rgba(99,102,241,0.15);
-      color: var(--primary-light);
+      background: rgba(46,173,86,0.12);
+      color: var(--primary-dark);
       border-radius: 12px;
       display: flex;
       align-items: center;
@@ -715,7 +718,7 @@
     .venue-card {
       margin: 0 20px 10px; padding: 14px 16px;
       background: var(--bg-card); border-radius: var(--radius);
-      border: 1px solid rgba(255,255,255,0.04);
+      border: 1px solid rgba(0,0,0,0.06);
     }
     .venue-card .venue-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
     .venue-card .venue-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
@@ -725,7 +728,7 @@
       background: rgba(34,197,94,0.15); color: var(--accent-green);
     }
     .venue-card .venue-tag.private { background: rgba(234,179,8,0.15); color: var(--accent-yellow); }
-    .venue-card .venue-tag.simulator { background: rgba(99,102,241,0.15); color: var(--primary-light); }
+    .venue-card .venue-tag.simulator { background: rgba(46,173,86,0.12); color: var(--primary-light); }
     .venues-loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
     .venues-loading .spinner {
       width: 32px; height: 32px; border: 3px solid var(--bg-input);
@@ -739,7 +742,7 @@
       position: fixed;
       bottom: 0; left: 0; right: 0;
       background: var(--bg-card);
-      border-top: 1px solid rgba(255,255,255,0.08);
+      border-top: 1px solid rgba(0,0,0,0.08);
       padding: 16px 20px;
       padding-bottom: calc(16px + env(safe-area-inset-bottom));
       display: none;
@@ -772,12 +775,12 @@
       bottom: 80px;
       left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: var(--bg-card);
-      color: var(--text);
+      background: #1a1a1a;
+      color: #ffffff;
       padding: 12px 24px;
       border-radius: var(--radius);
       font-size: 14px;
-      box-shadow: var(--shadow);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
       opacity: 0;
       transition: all 0.3s;
       z-index: 200;
