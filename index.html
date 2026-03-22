@@ -2586,7 +2586,30 @@
         if (!region) { showToast('Please select your province/state'); return; }
         if (!city) { showToast('Please select your city'); return; }
         const coords = CITY_COORDS[city];
-        if (coords) { lat = coords[0]; lng = coords[1]; }
+        if (coords) {
+          lat = coords[0]; lng = coords[1];
+        } else {
+          // Geocode city via Nominatim (free, no key required)
+          const regionData = LOCATION_DATA[country] && LOCATION_DATA[country].regions[region];
+          const regionName = regionData ? regionData.name : region;
+          const countryCode = country === 'CA_US' ? 'US' : country;
+          try {
+            const geoResp = await fetch(`https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&state=${encodeURIComponent(regionName)}&countrycodes=${countryCode}&format=json&limit=1`, {
+              headers: { 'Accept': 'application/json' }
+            });
+            const geoData = await geoResp.json();
+            if (geoData.length > 0) {
+              lat = parseFloat(geoData[0].lat);
+              lng = parseFloat(geoData[0].lon);
+              // Cache for future use
+              CITY_COORDS[city] = [lat, lng];
+            }
+          } catch (e) { /* geocoding failed, will fall through */ }
+        }
+        if (lat == null || lng == null) {
+          showToast('Could not determine location for ' + city + '. Try GPS mode or another city.');
+          return;
+        }
       }
 
       state.user = { ...state.user, name, age, gender, country, region, city, lat, lng, handicap, budgetMin, budgetMax, bio, locationMode, avatar: randomAvatar() };
