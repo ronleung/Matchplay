@@ -18,6 +18,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Leaflet.js for interactive tile-based maps -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -976,16 +979,11 @@
     /* GPS Map Area */
     .lg-map-area {
       height: 280px; background: #1a3a1a; position: relative; overflow: hidden;
-      display: flex; align-items: center; justify-content: center;
-      touch-action: none; user-select: none; -webkit-user-select: none;
     }
-    .lg-map-satellite {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      object-fit: cover; z-index: 0; pointer-events: none;
-    }
-    .lg-map-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; touch-action: none; }
+    .lg-map-leaflet { width: 100%; height: 100%; z-index: 0; }
+    .lg-map-leaflet .leaflet-control-zoom { display: none; }
     .lg-gps-overlay {
-      position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 2;
+      position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 1000;
       display: flex; justify-content: space-between; pointer-events: none;
     }
     .lg-gps-badge {
@@ -996,7 +994,7 @@
 
     /* Shot planner overlay */
     .lg-shot-planner {
-      position: absolute; top: 8px; left: 8px; right: 8px; z-index: 3;
+      position: absolute; top: 8px; left: 8px; right: 8px; z-index: 1000;
       display: flex; justify-content: center; gap: 6px; pointer-events: none;
     }
     .lg-shot-badge {
@@ -1012,7 +1010,7 @@
 
     /* Map controls */
     .lg-map-controls {
-      position: absolute; top: 8px; right: 8px; z-index: 3;
+      position: absolute; top: 8px; right: 8px; z-index: 1000;
       display: flex; flex-direction: column; gap: 4px;
     }
     .lg-map-btn {
@@ -1022,6 +1020,13 @@
     }
     .lg-map-btn:active { background: rgba(0,0,0,0.9); }
     .lg-map-btn.active { background: rgba(251,191,36,0.85); color: #000; }
+
+    /* Leaflet target marker */
+    .shot-target-icon {
+      background: none; border: none;
+    }
+    .shot-target-svg { filter: drop-shadow(0 0 3px rgba(0,0,0,0.5)); cursor: grab; }
+    .shot-target-svg:active { cursor: grabbing; }
 
     /* Scorecard Area */
     .lg-scorecard {
@@ -1413,8 +1418,7 @@
 
       <!-- GPS Map -->
       <div class="lg-map-area" id="lg-map-area">
-        <img id="lg-map-satellite" class="lg-map-satellite" alt="" draggable="false">
-        <canvas id="lg-map-canvas" class="lg-map-canvas"></canvas>
+        <div id="lg-map-leaflet" class="lg-map-leaflet"></div>
         <div class="lg-shot-planner">
           <div class="lg-shot-badge to-target" id="lg-shot-to-target">
             <span class="shot-label">To target</span>
@@ -3956,9 +3960,9 @@
       $('lg-hole-meta').textContent = `Par ${hd.par} · ${hd.yards} yds · ${gameState.course.name}`;
       $('lg-gps-par').textContent = `Par ${hd.par}`;
 
-      // Reset map view on hole change
-      mapView = { zoom: 1, panX: 0, panY: 0 };
+      // Reset shot target on hole change
       shotTarget = null;
+      shotTargetMarker = null;
       $('lg-shot-to-target').classList.remove('visible');
       $('lg-shot-to-pin').classList.remove('visible');
 
@@ -4255,6 +4259,7 @@
     function confirmQuitGame() {
       if (confirm('Are you sure you want to quit this round? All scores will be lost.')) {
         stopGameGps();
+        if (holeMap) { holeMap.remove(); holeMap = null; holeMapLayers = {}; }
         gameState = null;
         clearGameState();
         navigateTo('matches');
@@ -4377,193 +4382,231 @@
       const distYards = Math.round(distMeters * 1.09361);
       $('lg-gps-dist').textContent = `${distYards} yds to pin`;
 
-      // Redraw canvas overlay (don't reload satellite)
-      redrawMap();
-      // Update shot planner distances if active
-      if (shotPlannerActive && shotTarget) updateShotPlannerDistances();
-    }
-
-    // ---- Hole Map Drawing (Interactive Canvas with Pinch-Zoom/Pan) ----
-    const GMAPS_API_KEY = '';
-    let lastSatelliteUrl = '';
-
-    // Map view state for pinch-zoom and pan
-    let mapView = { zoom: 1, panX: 0, panY: 0 };
-    // Base bounds (unzoomed) for coordinate mapping
-    let mapBaseBounds = { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0, latRange: 0.001, lngRange: 0.001 };
-    // Shot planner state
-    let shotPlannerActive = false;
-    let shotTarget = null; // { lat, lng }
-    // Touch gesture state
-    let mapTouchState = { touches: [], lastDist: 0, lastCenter: null, isPanning: false, startPanX: 0, startPanY: 0, tapTimer: null };
-
-    function initMapGestures() {
-      const area = $('lg-map-area');
-      if (!area || area._gesturesInit) return;
-      area._gesturesInit = true;
-
-      area.addEventListener('touchstart', onMapTouchStart, { passive: false });
-      area.addEventListener('touchmove', onMapTouchMove, { passive: false });
-      area.addEventListener('touchend', onMapTouchEnd, { passive: false });
-      area.addEventListener('touchcancel', onMapTouchEnd, { passive: false });
-
-      // Mouse fallback for desktop
-      area.addEventListener('wheel', onMapWheel, { passive: false });
-      area.addEventListener('mousedown', onMapMouseDown);
-      area.addEventListener('mousemove', onMapMouseMove);
-      area.addEventListener('mouseup', onMapMouseUp);
-      area.addEventListener('click', onMapClick);
-    }
-
-    function onMapTouchStart(e) {
-      e.preventDefault();
-      const touches = Array.from(e.touches);
-      mapTouchState.touches = touches;
-
-      if (touches.length === 2) {
-        // Pinch start
-        mapTouchState.lastDist = getTouchDist(touches);
-        mapTouchState.lastCenter = getTouchCenter(touches);
-        clearTimeout(mapTouchState.tapTimer);
-      } else if (touches.length === 1) {
-        // Pan start or potential tap
-        mapTouchState.isPanning = false;
-        mapTouchState.startPanX = touches[0].clientX;
-        mapTouchState.startPanY = touches[0].clientY;
-        mapTouchState.lastCenter = { x: touches[0].clientX, y: touches[0].clientY };
-        mapTouchState.tapTimer = setTimeout(() => { mapTouchState.isPanning = true; }, 0);
-      }
-    }
-
-    function onMapTouchMove(e) {
-      e.preventDefault();
-      const touches = Array.from(e.touches);
-
-      if (touches.length === 2) {
-        // Pinch zoom
-        const dist = getTouchDist(touches);
-        const center = getTouchCenter(touches);
-        if (mapTouchState.lastDist > 0) {
-          const scale = dist / mapTouchState.lastDist;
-          mapView.zoom = Math.max(0.5, Math.min(8, mapView.zoom * scale));
-        }
-        // Pan during pinch
-        if (mapTouchState.lastCenter) {
-          mapView.panX += center.x - mapTouchState.lastCenter.x;
-          mapView.panY += center.y - mapTouchState.lastCenter.y;
-        }
-        mapTouchState.lastDist = dist;
-        mapTouchState.lastCenter = center;
-        redrawMap();
-      } else if (touches.length === 1) {
-        // Pan
-        mapTouchState.isPanning = true;
-        const dx = touches[0].clientX - mapTouchState.lastCenter.x;
-        const dy = touches[0].clientY - mapTouchState.lastCenter.y;
-        mapView.panX += dx;
-        mapView.panY += dy;
-        mapTouchState.lastCenter = { x: touches[0].clientX, y: touches[0].clientY };
-        redrawMap();
-      }
-    }
-
-    function onMapTouchEnd(e) {
-      e.preventDefault();
-      const prevTouches = mapTouchState.touches;
-      mapTouchState.touches = Array.from(e.touches);
-
-      // Detect tap (short touch, minimal movement)
-      if (e.changedTouches.length === 1 && prevTouches.length === 1 && !mapTouchState.isPanning) {
-        const t = e.changedTouches[0];
-        const dx = Math.abs(t.clientX - mapTouchState.startPanX);
-        const dy = Math.abs(t.clientY - mapTouchState.startPanY);
-        if (dx < 10 && dy < 10) {
-          handleMapTap(t.clientX, t.clientY);
-        }
-      } else if (prevTouches.length === 1) {
-        // Check total pan distance - if very small, treat as tap
-        const t = e.changedTouches[0];
-        const dx = Math.abs(t.clientX - mapTouchState.startPanX);
-        const dy = Math.abs(t.clientY - mapTouchState.startPanY);
-        if (dx < 8 && dy < 8) {
-          handleMapTap(t.clientX, t.clientY);
+      // Update player marker position on Leaflet map
+      if (holeMap && holeMapLayers.player) {
+        holeMapLayers.player.setLatLng([currentGpsPos.lat, currentGpsPos.lng]);
+        if (holeMapLayers.distLine) {
+          holeMapLayers.distLine.setLatLngs([[currentGpsPos.lat, currentGpsPos.lng], [hd.greenLat, hd.greenLng]]);
         }
       }
-
-      mapTouchState.lastDist = 0;
-      mapTouchState.lastCenter = null;
-      mapTouchState.isPanning = false;
-      clearTimeout(mapTouchState.tapTimer);
-      loadSatelliteForCurrentView();
-    }
-
-    // Mouse fallback
-    let mouseDown = false, mouseStartX = 0, mouseStartY = 0, mouseMoved = false;
-    function onMapMouseDown(e) {
-      mouseDown = true; mouseMoved = false;
-      mouseStartX = e.clientX; mouseStartY = e.clientY;
-      mapTouchState.lastCenter = { x: e.clientX, y: e.clientY };
-    }
-    function onMapMouseMove(e) {
-      if (!mouseDown) return;
-      mouseMoved = true;
-      mapView.panX += e.clientX - mapTouchState.lastCenter.x;
-      mapView.panY += e.clientY - mapTouchState.lastCenter.y;
-      mapTouchState.lastCenter = { x: e.clientX, y: e.clientY };
-      redrawMap();
-    }
-    function onMapMouseUp(e) {
-      mouseDown = false;
-      mapTouchState.lastCenter = null;
-      if (mouseMoved) loadSatelliteForCurrentView();
-    }
-    function onMapClick(e) {
-      if (mouseMoved) { mouseMoved = false; return; }
-      handleMapTap(e.clientX, e.clientY);
-    }
-    function onMapWheel(e) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      mapView.zoom = Math.max(0.5, Math.min(8, mapView.zoom * delta));
-      redrawMap();
-      clearTimeout(mapTouchState._wheelDebounce);
-      mapTouchState._wheelDebounce = setTimeout(() => loadSatelliteForCurrentView(), 300);
-    }
-
-    function getTouchDist(touches) {
-      const dx = touches[0].clientX - touches[1].clientX;
-      const dy = touches[0].clientY - touches[1].clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-    function getTouchCenter(touches) {
-      return { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 };
-    }
-
-    function handleMapTap(clientX, clientY) {
-      if (!shotPlannerActive || !gameState) return;
-      const canvas = $('lg-map-canvas');
-      const rect = canvas.getBoundingClientRect();
-      const sx = clientX - rect.left;
-      const sy = clientY - rect.top;
-      // Convert screen coords back to lat/lng using current view transform
-      const coords = screenToLatLng(sx, sy, rect.width, rect.height);
-      if (coords) {
-        shotTarget = coords;
-        redrawMap();
+      // Update shot planner lines if active
+      if (shotPlannerActive && shotTarget) {
+        updateShotTargetLines();
         updateShotPlannerDistances();
       }
     }
 
-    function screenToLatLng(sx, sy, W, H) {
-      const b = mapBaseBounds;
-      // Reverse the transform: screen = (geo * zoom) + pan + center
-      const cx = W / 2 + mapView.panX;
-      const cy = H / 2 + mapView.panY;
-      const geoX = (sx - cx) / mapView.zoom + W / 2;
-      const geoY = (sy - cy) / mapView.zoom + H / 2;
-      const lng = b.minLng + (geoX / W) * b.lngRange;
-      const lat = b.maxLat - (geoY / H) * b.latRange;
-      return { lat, lng };
+    // ---- Hole Map (Leaflet.js Tile-Based Satellite Map) ----
+    const GMAPS_API_KEY = '';
+    let holeMap = null; // Leaflet map instance
+    let holeMapLayers = {}; // Named layer references
+    let shotPlannerActive = false;
+    let shotTarget = null; // { lat, lng }
+    let shotTargetMarker = null; // Leaflet draggable marker
+
+    // Custom SVG icons for map markers
+    function makeSvgIcon(svg, size, anchor) {
+      return L.divIcon({ html: svg, className: 'shot-target-icon', iconSize: size, iconAnchor: anchor || [size[0]/2, size[1]/2] });
+    }
+
+    const TEE_ICON = makeSvgIcon(
+      '<svg width="20" height="12" viewBox="0 0 20 12"><rect x="1" y="1" width="18" height="10" rx="2" fill="rgba(255,255,255,0.9)" stroke="#fff" stroke-width="1.5"/><text x="10" y="9" text-anchor="middle" font-size="7" font-weight="800" fill="#333" font-family="system-ui">TEE</text></svg>',
+      [20, 12]
+    );
+
+    const GREEN_ICON = makeSvgIcon(
+      '<svg width="28" height="36" viewBox="0 0 28 36"><circle cx="14" cy="22" r="11" fill="rgba(46,173,86,0.35)" stroke="rgba(255,255,255,0.7)" stroke-width="2"/><line x1="14" y1="6" x2="14" y2="24" stroke="#fff" stroke-width="2"/><polygon points="14,6 23,10 14,14" fill="#ef4444"/></svg>',
+      [28, 36], [14, 24]
+    );
+
+    const PLAYER_ICON = makeSvgIcon(
+      '<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(66,133,244,0.25)"/><circle cx="12" cy="12" r="6" fill="#4285f4" stroke="#fff" stroke-width="2.5"/></svg>',
+      [24, 24]
+    );
+
+    const TARGET_ICON = makeSvgIcon(
+      '<svg class="shot-target-svg" width="32" height="32" viewBox="0 0 32 32">'
+      + '<circle cx="16" cy="16" r="10" fill="none" stroke="#fbbf24" stroke-width="2.5"/>'
+      + '<circle cx="16" cy="16" r="3" fill="#fbbf24"/>'
+      + '<line x1="2" y1="16" x2="10" y2="16" stroke="rgba(251,191,36,0.7)" stroke-width="1.5"/>'
+      + '<line x1="22" y1="16" x2="30" y2="16" stroke="rgba(251,191,36,0.7)" stroke-width="1.5"/>'
+      + '<line x1="16" y1="2" x2="16" y2="10" stroke="rgba(251,191,36,0.7)" stroke-width="1.5"/>'
+      + '<line x1="16" y1="22" x2="16" y2="30" stroke="rgba(251,191,36,0.7)" stroke-width="1.5"/>'
+      + '</svg>',
+      [32, 32]
+    );
+
+    function initHoleMap() {
+      const el = $('lg-map-leaflet');
+      if (!el) return;
+
+      if (holeMap) {
+        holeMap.remove();
+        holeMap = null;
+      }
+
+      holeMap = L.map(el, {
+        zoomControl: false,
+        attributionControl: false,
+        maxZoom: 20,
+        minZoom: 14
+      });
+
+      // Satellite tile layer — Esri World Imagery (free, high quality)
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 20,
+        maxNativeZoom: 18
+      }).addTo(holeMap);
+
+      // Click to place/move target when shot planner is active
+      holeMap.on('click', function(e) {
+        if (!shotPlannerActive || !gameState) return;
+        placeShotTarget(e.latlng.lat, e.latlng.lng);
+      });
+
+      holeMapLayers = {};
+    }
+
+    function drawHoleMap(holeData) {
+      if (!holeMap) initHoleMap();
+      if (!holeMap) return;
+
+      // Clear all existing overlays
+      Object.values(holeMapLayers).forEach(layer => {
+        if (layer) holeMap.removeLayer(layer);
+      });
+      holeMapLayers = {};
+
+      // Fit bounds to show tee and green with padding
+      const points = [
+        [holeData.teeLat, holeData.teeLng],
+        [holeData.greenLat, holeData.greenLng]
+      ];
+      if (currentGpsPos) points.push([currentGpsPos.lat, currentGpsPos.lng]);
+
+      const bounds = L.latLngBounds(points);
+      holeMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 18 });
+
+      // Fairway line (semi-transparent)
+      holeMapLayers.fairway = L.polyline(
+        [[holeData.teeLat, holeData.teeLng], [holeData.greenLat, holeData.greenLng]],
+        { color: 'rgba(255,255,255,0.2)', weight: 16, lineCap: 'round' }
+      ).addTo(holeMap);
+
+      // Yardage markers along the fairway
+      const yardageMarkers = [200, 150, 100, 50];
+      yardageMarkers.forEach(yds => {
+        if (yds >= holeData.yards) return;
+        const pct = 1 - (yds / holeData.yards);
+        const lat = holeData.teeLat + (holeData.greenLat - holeData.teeLat) * pct;
+        const lng = holeData.teeLng + (holeData.greenLng - holeData.teeLng) * pct;
+        const icon = makeSvgIcon(
+          `<svg width="28" height="18" viewBox="0 0 28 18"><rect x="1" y="1" width="26" height="16" rx="4" fill="rgba(0,0,0,0.6)"/><text x="14" y="13" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="system-ui">${yds}</text></svg>`,
+          [28, 18]
+        );
+        holeMapLayers['yd' + yds] = L.marker([lat, lng], { icon, interactive: false }).addTo(holeMap);
+      });
+
+      // Tee marker
+      holeMapLayers.tee = L.marker([holeData.teeLat, holeData.teeLng], { icon: TEE_ICON, interactive: false }).addTo(holeMap);
+
+      // Green/pin marker
+      holeMapLayers.green = L.marker([holeData.greenLat, holeData.greenLng], { icon: GREEN_ICON, interactive: false }).addTo(holeMap);
+
+      // Player GPS position
+      if (currentGpsPos) {
+        holeMapLayers.player = L.marker([currentGpsPos.lat, currentGpsPos.lng], { icon: PLAYER_ICON, interactive: false }).addTo(holeMap);
+
+        // Dashed line from player to green
+        holeMapLayers.distLine = L.polyline(
+          [[currentGpsPos.lat, currentGpsPos.lng], [holeData.greenLat, holeData.greenLng]],
+          { color: 'rgba(255,255,255,0.5)', weight: 1.5, dashArray: '5 4' }
+        ).addTo(holeMap);
+      }
+
+      // Restore shot target if active
+      if (shotPlannerActive && shotTarget) {
+        placeShotTarget(shotTarget.lat, shotTarget.lng);
+      }
+
+      // Invalidate size after render (Leaflet needs this when container was hidden)
+      setTimeout(() => { if (holeMap) holeMap.invalidateSize(); }, 100);
+    }
+
+    function placeShotTarget(lat, lng) {
+      if (!gameState) return;
+      const hd = gameState.holeData[gameState.currentHole - 1];
+      shotTarget = { lat, lng };
+
+      // Remove old target layers
+      ['targetMarker', 'targetLineToPlayer', 'targetLineToPin', 'targetLabelPlayer', 'targetLabelPin'].forEach(k => {
+        if (holeMapLayers[k]) { holeMap.removeLayer(holeMapLayers[k]); holeMapLayers[k] = null; }
+      });
+
+      // Draggable target marker
+      shotTargetMarker = L.marker([lat, lng], { icon: TARGET_ICON, draggable: true, zIndexOffset: 1000 }).addTo(holeMap);
+      shotTargetMarker.on('drag', function(e) {
+        const pos = e.target.getLatLng();
+        shotTarget = { lat: pos.lat, lng: pos.lng };
+        updateShotTargetLines();
+        updateShotPlannerDistances();
+      });
+      shotTargetMarker.on('dragend', function(e) {
+        const pos = e.target.getLatLng();
+        shotTarget = { lat: pos.lat, lng: pos.lng };
+        updateShotTargetLines();
+        updateShotPlannerDistances();
+      });
+      holeMapLayers.targetMarker = shotTargetMarker;
+
+      updateShotTargetLines();
+      updateShotPlannerDistances();
+    }
+
+    function updateShotTargetLines() {
+      if (!shotTarget || !gameState || !holeMap) return;
+      const hd = gameState.holeData[gameState.currentHole - 1];
+      const fromLat = currentGpsPos ? currentGpsPos.lat : hd.teeLat;
+      const fromLng = currentGpsPos ? currentGpsPos.lng : hd.teeLng;
+
+      // Remove old lines & labels
+      ['targetLineToPlayer', 'targetLineToPin', 'targetLabelPlayer', 'targetLabelPin'].forEach(k => {
+        if (holeMapLayers[k]) { holeMap.removeLayer(holeMapLayers[k]); holeMapLayers[k] = null; }
+      });
+
+      // Yellow dashed line: player/tee → target
+      holeMapLayers.targetLineToPlayer = L.polyline(
+        [[fromLat, fromLng], [shotTarget.lat, shotTarget.lng]],
+        { color: '#fbbf24', weight: 2.5, dashArray: '6 4', opacity: 0.85 }
+      ).addTo(holeMap);
+
+      // Green dashed line: target → pin
+      holeMapLayers.targetLineToPin = L.polyline(
+        [[shotTarget.lat, shotTarget.lng], [hd.greenLat, hd.greenLng]],
+        { color: '#4ade80', weight: 2.5, dashArray: '6 4', opacity: 0.85 }
+      ).addTo(holeMap);
+
+      // Distance labels on the lines
+      const toTargetM = haversineKm(fromLat, fromLng, shotTarget.lat, shotTarget.lng) * 1000;
+      const toTargetYds = Math.round(toTargetM * 1.09361);
+      const toPinM = haversineKm(shotTarget.lat, shotTarget.lng, hd.greenLat, hd.greenLng) * 1000;
+      const toPinYds = Math.round(toPinM * 1.09361);
+
+      const midLat1 = (fromLat + shotTarget.lat) / 2;
+      const midLng1 = (fromLng + shotTarget.lng) / 2;
+      const labelIcon1 = makeSvgIcon(
+        `<svg width="44" height="22" viewBox="0 0 44 22"><rect x="0" y="0" width="44" height="22" rx="6" fill="rgba(0,0,0,0.75)"/><text x="22" y="15" text-anchor="middle" font-size="11" font-weight="800" fill="#fbbf24" font-family="system-ui">${toTargetYds}</text></svg>`,
+        [44, 22]
+      );
+      holeMapLayers.targetLabelPlayer = L.marker([midLat1, midLng1], { icon: labelIcon1, interactive: false }).addTo(holeMap);
+
+      const midLat2 = (shotTarget.lat + hd.greenLat) / 2;
+      const midLng2 = (shotTarget.lng + hd.greenLng) / 2;
+      const labelIcon2 = makeSvgIcon(
+        `<svg width="44" height="22" viewBox="0 0 44 22"><rect x="0" y="0" width="44" height="22" rx="6" fill="rgba(0,0,0,0.75)"/><text x="22" y="15" text-anchor="middle" font-size="11" font-weight="800" fill="#4ade80" font-family="system-ui">${toPinYds}</text></svg>`,
+        [44, 22]
+      );
+      holeMapLayers.targetLabelPin = L.marker([midLat2, midLng2], { icon: labelIcon2, interactive: false }).addTo(holeMap);
     }
 
     function toggleShotPlanner() {
@@ -4572,23 +4615,24 @@
       if (btn) btn.classList.toggle('active', shotPlannerActive);
       if (!shotPlannerActive) {
         shotTarget = null;
+        shotTargetMarker = null;
+        // Remove target layers
+        ['targetMarker', 'targetLineToPlayer', 'targetLineToPin', 'targetLabelPlayer', 'targetLabelPin'].forEach(k => {
+          if (holeMapLayers[k]) { holeMap.removeLayer(holeMapLayers[k]); holeMapLayers[k] = null; }
+        });
         $('lg-shot-to-target').classList.remove('visible');
         $('lg-shot-to-pin').classList.remove('visible');
       }
-      redrawMap();
     }
 
     function updateShotPlannerDistances() {
       if (!shotTarget || !gameState) return;
       const hd = gameState.holeData[gameState.currentHole - 1];
 
-      // Distance from player (or tee) to target
       const fromLat = currentGpsPos ? currentGpsPos.lat : hd.teeLat;
       const fromLng = currentGpsPos ? currentGpsPos.lng : hd.teeLng;
       const toTargetM = haversineKm(fromLat, fromLng, shotTarget.lat, shotTarget.lng) * 1000;
       const toTargetYds = Math.round(toTargetM * 1.09361);
-
-      // Distance from target to pin
       const toPinM = haversineKm(shotTarget.lat, shotTarget.lng, hd.greenLat, hd.greenLng) * 1000;
       const toPinYds = Math.round(toPinM * 1.09361);
 
@@ -4599,333 +4643,19 @@
     }
 
     function mapZoomIn() {
-      mapView.zoom = Math.min(8, mapView.zoom * 1.4);
-      redrawMap();
-      loadSatelliteForCurrentView();
+      if (holeMap) holeMap.zoomIn();
     }
     function mapZoomOut() {
-      mapView.zoom = Math.max(0.5, mapView.zoom / 1.4);
-      redrawMap();
-      loadSatelliteForCurrentView();
+      if (holeMap) holeMap.zoomOut();
     }
     function resetMapView() {
-      mapView = { zoom: 1, panX: 0, panY: 0 };
       shotTarget = null;
+      shotTargetMarker = null;
       $('lg-shot-to-target').classList.remove('visible');
       $('lg-shot-to-pin').classList.remove('visible');
       if (gameState) {
         const hd = gameState.holeData[gameState.currentHole - 1];
         drawHoleMap(hd);
-      }
-    }
-
-    function redrawMap() {
-      if (!gameState) return;
-      const hd = gameState.holeData[gameState.currentHole - 1];
-      drawHoleMapCanvas(hd, false); // Redraw canvas only, don't reload satellite
-    }
-
-    function drawHoleMap(holeData) {
-      drawHoleMapCanvas(holeData, true);
-      initMapGestures();
-    }
-
-    function drawHoleMapCanvas(holeData, loadSatellite) {
-      const canvas = $('lg-map-canvas');
-      const satImg = $('lg-map-satellite');
-      if (!canvas) return;
-
-      const ctx = canvas.getContext('2d');
-      const rect = canvas.parentElement.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      canvas.style.width = rect.width + 'px';
-      canvas.style.height = rect.height + 'px';
-      ctx.scale(dpr, dpr);
-      const W = rect.width, H = rect.height;
-
-      // Calculate base bounds (unzoomed) — tee to green with padding
-      const points = [
-        { lat: holeData.teeLat, lng: holeData.teeLng },
-        { lat: holeData.greenLat, lng: holeData.greenLng }
-      ];
-      if (currentGpsPos) points.push({ lat: currentGpsPos.lat, lng: currentGpsPos.lng });
-      if (shotTarget) points.push({ lat: shotTarget.lat, lng: shotTarget.lng });
-
-      const lats = points.map(p => p.lat);
-      const lngs = points.map(p => p.lng);
-      const padFactor = 0.3;
-      const rawLatRange = Math.max(...lats) - Math.min(...lats) || 0.001;
-      const rawLngRange = Math.max(...lngs) - Math.min(...lngs) || 0.001;
-
-      if (loadSatellite) {
-        // Only reset base bounds on full redraw (hole change)
-        mapBaseBounds.minLat = Math.min(...lats) - rawLatRange * padFactor;
-        mapBaseBounds.maxLat = Math.max(...lats) + rawLatRange * padFactor;
-        mapBaseBounds.minLng = Math.min(...lngs) - rawLngRange * padFactor;
-        mapBaseBounds.maxLng = Math.max(...lngs) + rawLngRange * padFactor;
-        mapBaseBounds.latRange = mapBaseBounds.maxLat - mapBaseBounds.minLat;
-        mapBaseBounds.lngRange = mapBaseBounds.maxLng - mapBaseBounds.minLng;
-      }
-
-      const b = mapBaseBounds;
-
-      // toScreen: geo coords → screen coords with zoom and pan applied
-      function toScreen(lat, lng) {
-        const baseX = ((lng - b.minLng) / b.lngRange) * W;
-        const baseY = ((b.maxLat - lat) / b.latRange) * H;
-        // Apply zoom from center + pan
-        const cx = W / 2 + mapView.panX;
-        const cy = H / 2 + mapView.panY;
-        const x = cx + (baseX - W / 2) * mapView.zoom;
-        const y = cy + (baseY - H / 2) * mapView.zoom;
-        return [x, y];
-      }
-
-      // Load satellite imagery for current view
-      if (loadSatellite) {
-        loadSatelliteForCurrentView();
-      }
-
-      // Apply zoom/pan transform to satellite image
-      const satCx = W / 2 + mapView.panX;
-      const satCy = H / 2 + mapView.panY;
-      satImg.style.transformOrigin = '50% 50%';
-      satImg.style.transform = `translate(${mapView.panX}px, ${mapView.panY}px) scale(${mapView.zoom})`;
-
-      // Clear canvas overlay
-      ctx.clearRect(0, 0, W, H);
-
-      const [teeX, teeY] = toScreen(holeData.teeLat, holeData.teeLng);
-      const [greenX, greenY] = toScreen(holeData.greenLat, holeData.greenLng);
-      const zScale = Math.max(0.6, Math.min(2, mapView.zoom));
-
-      // Semi-transparent fairway path
-      ctx.beginPath();
-      ctx.moveTo(teeX, teeY);
-      ctx.lineTo(greenX, greenY);
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 20 * zScale;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-
-      // Green circle
-      ctx.beginPath();
-      ctx.arc(greenX, greenY, 14 * zScale, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(46,173,86,0.3)';
-      ctx.fill();
-
-      // Pin flag
-      const fs = zScale;
-      ctx.beginPath();
-      ctx.moveTo(greenX, greenY - 16 * fs);
-      ctx.lineTo(greenX, greenY + 2 * fs);
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(greenX, greenY - 16 * fs);
-      ctx.lineTo(greenX + 9 * fs, greenY - 12 * fs);
-      ctx.lineTo(greenX, greenY - 8 * fs);
-      ctx.fillStyle = '#ef4444';
-      ctx.fill();
-
-      // Tee box marker
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillRect(teeX - 7 * fs, teeY - 3 * fs, 14 * fs, 6 * fs);
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(teeX - 7 * fs, teeY - 3 * fs, 14 * fs, 6 * fs);
-
-      // Yardage markers
-      const markers = [200, 150, 100, 50];
-      const totalYards = holeData.yards;
-      markers.forEach(yds => {
-        if (yds >= totalYards) return;
-        const pct = 1 - (yds / totalYards);
-        const mx = teeX + (greenX - teeX) * pct;
-        const my = teeY + (greenY - teeY) * pct;
-        ctx.beginPath();
-        ctx.arc(mx, my, 3 * fs, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.fill();
-        ctx.font = `bold ${Math.round(9 * fs)}px system-ui`;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillText(yds + '', mx + 1, my - 6 * fs);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(yds + '', mx, my - 7 * fs);
-      });
-
-      // Tee label
-      ctx.font = `bold ${Math.round(10 * fs)}px system-ui`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillText('TEE', teeX + 1, teeY + 19 * fs);
-      ctx.fillStyle = '#fff';
-      ctx.fillText('TEE', teeX, teeY + 18 * fs);
-
-      // Player position (GPS dot)
-      if (currentGpsPos) {
-        const [px, py] = toScreen(currentGpsPos.lat, currentGpsPos.lng);
-
-        ctx.beginPath();
-        ctx.arc(px, py, 14 * fs, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(66,133,244,0.25)';
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(px, py, 7 * fs, 0, Math.PI * 2);
-        ctx.fillStyle = '#4285f4';
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-
-        // Distance line from player to green
-        ctx.beginPath();
-        ctx.moveTo(px, py);
-        ctx.lineTo(greenX, greenY);
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([5, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Shot planner target
-      if (shotPlannerActive && shotTarget) {
-        const [tx, ty] = toScreen(shotTarget.lat, shotTarget.lng);
-        const fromLat = currentGpsPos ? currentGpsPos.lat : holeData.teeLat;
-        const fromLng = currentGpsPos ? currentGpsPos.lng : holeData.teeLng;
-        const [fx, fy] = toScreen(fromLat, fromLng);
-
-        // Line from player/tee to target (yellow dashed)
-        ctx.beginPath();
-        ctx.moveTo(fx, fy);
-        ctx.lineTo(tx, ty);
-        ctx.strokeStyle = 'rgba(251,191,36,0.8)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Line from target to pin (green dashed)
-        ctx.beginPath();
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(greenX, greenY);
-        ctx.strokeStyle = 'rgba(74,222,128,0.8)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Target marker - crosshair ring
-        ctx.beginPath();
-        ctx.arc(tx, ty, 10 * fs, 0, Math.PI * 2);
-        ctx.strokeStyle = '#fbbf24';
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(tx, ty, 3 * fs, 0, Math.PI * 2);
-        ctx.fillStyle = '#fbbf24';
-        ctx.fill();
-
-        // Crosshair lines
-        const cr = 14 * fs;
-        ctx.beginPath();
-        ctx.moveTo(tx - cr, ty); ctx.lineTo(tx - 6 * fs, ty);
-        ctx.moveTo(tx + 6 * fs, ty); ctx.lineTo(tx + cr, ty);
-        ctx.moveTo(tx, ty - cr); ctx.lineTo(tx, ty - 6 * fs);
-        ctx.moveTo(tx, ty + 6 * fs); ctx.lineTo(tx, ty + cr);
-        ctx.strokeStyle = 'rgba(251,191,36,0.6)';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-
-        // Inline distance labels on the lines
-        const toTargetM = haversineKm(fromLat, fromLng, shotTarget.lat, shotTarget.lng) * 1000;
-        const toTargetYds = Math.round(toTargetM * 1.09361);
-        const toPinM = haversineKm(shotTarget.lat, shotTarget.lng, holeData.greenLat, holeData.greenLng) * 1000;
-        const toPinYds = Math.round(toPinM * 1.09361);
-
-        // Label on player-to-target line
-        const midX1 = (fx + tx) / 2, midY1 = (fy + ty) / 2;
-        drawMapLabel(ctx, `${toTargetYds}`, midX1, midY1, 'rgba(251,191,36,0.9)', fs);
-
-        // Label on target-to-pin line
-        const midX2 = (tx + greenX) / 2, midY2 = (ty + greenY) / 2;
-        drawMapLabel(ctx, `${toPinYds}`, midX2, midY2, 'rgba(74,222,128,0.9)', fs);
-      }
-    }
-
-    function drawMapLabel(ctx, text, x, y, color, scale) {
-      const fontSize = Math.round(11 * scale);
-      ctx.font = `bold ${fontSize}px system-ui`;
-      const tw = ctx.measureText(text).width;
-      const pad = 4 * scale;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.beginPath();
-      ctx.roundRect(x - tw / 2 - pad, y - fontSize / 2 - pad, tw + pad * 2, fontSize + pad * 2, 4 * scale);
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, x, y);
-      ctx.textBaseline = 'alphabetic';
-    }
-
-    function loadSatelliteForCurrentView() {
-      const satImg = $('lg-map-satellite');
-      const canvas = $('lg-map-canvas');
-      if (!satImg || !canvas) return;
-      const rect = canvas.parentElement.getBoundingClientRect();
-      const W = rect.width, H = rect.height;
-      const b = mapBaseBounds;
-
-      // Compute the visible bounds accounting for zoom and pan
-      const cx = W / 2 + mapView.panX;
-      const cy = H / 2 + mapView.panY;
-      // Visible screen corners in base-geo-space
-      const geoLeft = (0 - cx) / mapView.zoom + W / 2;
-      const geoRight = (W - cx) / mapView.zoom + W / 2;
-      const geoTop = (0 - cy) / mapView.zoom + H / 2;
-      const geoBottom = (H - cy) / mapView.zoom + H / 2;
-
-      // For satellite image, always load the base bounds (zoom is handled by CSS transform)
-      loadSatelliteImage(satImg, b.minLat, b.maxLat, b.minLng, b.maxLng, W, H);
-    }
-
-    function loadSatelliteImage(imgEl, minLat, maxLat, minLng, maxLng, viewW, viewH) {
-      const imgW = Math.min(1024, Math.round(viewW * 2));
-      const imgH = Math.min(1024, Math.round(viewH * 2));
-
-      let url;
-      if (GMAPS_API_KEY) {
-        const centerLat = (minLat + maxLat) / 2;
-        const centerLng = (minLng + maxLng) / 2;
-        const latSpan = maxLat - minLat;
-        const lngSpan = maxLng - minLng;
-        let zoom = 17;
-        const maxSpan = Math.max(latSpan, lngSpan);
-        if (maxSpan > 0.012) zoom = 15;
-        else if (maxSpan > 0.006) zoom = 16;
-        else if (maxSpan > 0.003) zoom = 17;
-        else zoom = 18;
-        url = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=${imgW}x${imgH}&maptype=satellite&key=${GMAPS_API_KEY}`;
-      } else {
-        const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
-        url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=${imgW},${imgH}&imageSR=4326&format=jpg&f=image`;
-      }
-
-      if (url !== lastSatelliteUrl) {
-        lastSatelliteUrl = url;
-        imgEl.src = url;
-        imgEl.style.display = '';
-        imgEl.onerror = () => { imgEl.style.display = 'none'; };
       }
     }
 
