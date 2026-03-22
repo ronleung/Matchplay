@@ -1220,10 +1220,6 @@
         </button>
         <div class="avatar" id="chat-avatar"></div>
         <span id="chat-name" style="font-weight:600;flex:1;"></span>
-        <button class="btn-ghost" onclick="openScoreModal()" title="Submit Score" style="color:var(--primary);font-size:12px;font-weight:600;white-space:nowrap;">
-          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:2px;"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
-          Score
-        </button>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-bar">
@@ -1331,6 +1327,16 @@
           </div>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="startGame()">Start Round</button>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:16px;">
+          <div style="flex:1;height:1px;background:rgba(0,0,0,0.08);"></div>
+          <span style="font-size:11px;color:var(--text-muted);">or</span>
+          <div style="flex:1;height:1px;background:rgba(0,0,0,0.08);"></div>
+        </div>
+        <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="openScoreModalFromPlay()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:4px;"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+          Submit a Score
+        </button>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:center;">Manually enter a score for a completed round.</p>
       </div>
     </div>
 
@@ -1393,7 +1399,9 @@
         <h2>Submit Match Score</h2>
         <div class="input-group">
           <label>Opponent</label>
-          <input id="score-opponent" class="input" readonly>
+          <select id="score-opponent" class="input">
+            <option value="">Select an opponent...</option>
+          </select>
         </div>
         <div class="input-group">
           <label>Course Played</label>
@@ -2845,12 +2853,20 @@
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
     // Score submission
-    function openScoreModal() {
-      if (!state.currentChat) return;
-      const profile = state.matches.find(m => m.id === state.currentChat);
-      if (!profile) return;
+    let scoreModalOpponentId = null;
 
-      $('score-opponent').value = profile.name;
+    function populateScoreModal(preselectedOpponentId) {
+      // Populate opponent dropdown
+      const oppSelect = $('score-opponent');
+      oppSelect.innerHTML = '<option value="">Select an opponent...</option>';
+      state.matches.forEach(m => {
+        oppSelect.innerHTML += `<option value="${m.id}">${m.name}</option>`;
+      });
+      if (preselectedOpponentId) {
+        oppSelect.value = preselectedOpponentId;
+      }
+      scoreModalOpponentId = preselectedOpponentId || null;
+
       $('score-date').value = new Date().toISOString().split('T')[0];
       $('score-mine').value = '';
       $('score-theirs').value = '';
@@ -2871,11 +2887,20 @@
       $('score-modal').classList.add('active');
     }
 
+    function openScoreModalFromPlay() {
+      if (state.matches.length === 0) {
+        showToast('Match with players first!');
+        return;
+      }
+      populateScoreModal(null);
+    }
+
     function closeScoreModal() {
       $('score-modal').classList.remove('active');
     }
 
     function submitScore() {
+      const opponentId = $('score-opponent').value;
       const course = $('score-course').value;
       const date = $('score-date').value;
       const tees = $('score-tees').value;
@@ -2883,6 +2908,7 @@
       const theirScore = parseInt($('score-theirs').value);
       const strokes = $('score-strokes').value;
 
+      if (!opponentId) { showToast('Please select an opponent'); return; }
       if (!course) { showToast('Please select a course'); return; }
       if (!date) { showToast('Please enter the date'); return; }
       if (!myScore || myScore < 40) { showToast('Please enter a valid score'); return; }
@@ -2906,7 +2932,7 @@
         id: 'r-' + Date.now(),
         date, course, tees,
         myScore, theirScore,
-        opponentId: state.currentChat,
+        opponentId,
         strokes: formatStrokesLabel(strokes),
         result,
         verified: false
@@ -2928,12 +2954,10 @@
       showToast('Score submitted! Waiting for opponent to verify.');
 
       // Send a chat message about the score
-      const profile = state.matches.find(m => m.id === state.currentChat);
-      const resultEmoji = result === 'win' ? '&#127942;' : result === 'draw' ? '&#129309;' : '&#128170;';
       const autoMsg = { from: state.user.id || 'me', text: `Submitted score: ${myScore} vs ${theirScore} at ${course} (${formatDate(date)})`, time: new Date().toISOString() };
-      if (!state.conversations[state.currentChat]) state.conversations[state.currentChat] = [];
-      state.conversations[state.currentChat].push(autoMsg);
-      renderMessages();
+      if (!state.conversations[opponentId]) state.conversations[opponentId] = [];
+      state.conversations[opponentId].push(autoMsg);
+      updateProfileStats();
     }
 
     function formatStrokesLabel(strokes) {
