@@ -8,7 +8,7 @@
   <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Match Play">
+  <meta name="apple-mobile-web-app-title" ontent="Match Play">
   <link rel="apple-touch-icon" href="icons/icon.svg">
   <meta name="theme-color" content="#2EAD56">
 
@@ -3963,6 +3963,8 @@
       // Reset shot target on hole change
       shotTarget = null;
       shotTargetMarker = null;
+      shotPlannerActive = false;
+      const _btn = $('lg-target-btn'); if (_btn) _btn.classList.remove('active');
       $('lg-shot-to-target').classList.remove('visible');
       $('lg-shot-to-pin').classList.remove('visible');
 
@@ -4260,6 +4262,8 @@
       if (confirm('Are you sure you want to quit this round? All scores will be lost.')) {
         stopGameGps();
         if (holeMap) { holeMap.remove(); holeMap = null; holeMapLayers = {}; }
+        shotPlannerActive = false; shotTarget = null; shotTargetMarker = null;
+        const _qBtn = $('lg-target-btn'); if (_qBtn) _qBtn.classList.remove('active');
         gameState = null;
         clearGameState();
         navigateTo('matches');
