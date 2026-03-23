@@ -3571,7 +3571,7 @@
         matchScore: 0,
         startTime: new Date(),
         gpsWatchId: null,
-        dataVersion: 2
+        dataVersion: 3
       };
 
       // Save initial round state
@@ -3777,6 +3777,7 @@
     const courseHoleCache = {};
 
     // Build hole data array from hardcoded scorecard + course center coordinates
+    // Only used as last resort when OSM has no geometry for this course
     function buildHoleDataFromScorecard(scorecard, numHoles, teeColor, courseLat, courseLng) {
       const pars = scorecard.par.slice(0, numHoles);
       const teeYards = scorecard.yards[teeColor] || scorecard.yards.white || Object.values(scorecard.yards)[0];
@@ -3785,7 +3786,6 @@
       const cLng = scorecard.center ? scorecard.center[1] : courseLng;
 
       // Lay holes out around the course center using golden angle for even distribution
-      // This ensures the satellite image is centered on the actual course property
       const holes = [];
       const goldenAngle = Math.PI * (3 - Math.sqrt(5));
       for (let i = 0; i < numHoles; i++) {
@@ -3802,99 +3802,120 @@
       return holes;
     }
 
-    // Get course hole data: hardcoded scorecards → OSM Overpass → fallback layout
-    async function fetchCourseHoleData(courseLat, courseLng, numHoles, teeColor, courseName) {
-      // 1. Check hardcoded verified scorecards first (most accurate)
-      if (courseName && COURSE_DATA[courseName]) {
-        const scorecard = COURSE_DATA[courseName];
-        const requestedHoles = Math.min(numHoles, scorecard.par.length);
-        return buildHoleDataFromScorecard(scorecard, requestedHoles, teeColor, courseLat, courseLng);
+    // Fetch real hole geometry from OpenStreetMap Overpass API
+    async function fetchOsmHoleGeometry(courseLat, courseLng, numHoles) {
+      const query = `[out:json][timeout:20];(
+        way["golf"="hole"](around:3000,${courseLat},${courseLng});
+      );out geom tags;`;
+
+      const resp = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(query)
+      });
+      if (!resp.ok) throw new Error('Overpass API error');
+      const data = await resp.json();
+
+      if (!data.elements || data.elements.length === 0) {
+        throw new Error('No hole data found');
       }
 
-      // 2. Check cache
-      const cacheKey = `${courseLat.toFixed(4)},${courseLng.toFixed(4)},${numHoles}`;
-      if (courseHoleCache[cacheKey]) {
-        return applyTeeScaling(courseHoleCache[cacheKey], teeColor);
-      }
+      const rawHoles = data.elements
+        .filter(el => el.geometry && el.geometry.length >= 2 && el.tags)
+        .map(el => {
+          const geom = el.geometry;
+          const teeLat = geom[0].lat;
+          const teeLng = geom[0].lon;
+          const greenLat = geom[geom.length - 1].lat;
+          const greenLng = geom[geom.length - 1].lon;
+          let totalMeters = 0;
+          for (let i = 1; i < geom.length; i++) {
+            totalMeters += haversineKm(geom[i-1].lat, geom[i-1].lon, geom[i].lat, geom[i].lon) * 1000;
+          }
+          const yards = Math.round(totalMeters * 1.09361);
+          const ref = parseInt(el.tags.ref) || 0;
+          const par = parseInt(el.tags.par) || estimateParFromYards(yards);
+          const handicap = parseInt(el.tags.handicap) || null;
+          return { hole: ref, par, yards, teeLat, teeLng, greenLat, greenLng, handicap, geometry: geom };
+        })
+        .filter(h => h.hole > 0);
 
-      // 3. Try OpenStreetMap Overpass API for real hole geometry
-      try {
-        const query = `[out:json][timeout:20];(
-          way["golf"="hole"](around:3000,${courseLat},${courseLng});
-        );out geom tags;`;
+      if (rawHoles.length === 0) throw new Error('No valid hole data');
 
-        const resp = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          body: 'data=' + encodeURIComponent(query)
+      // Deduplicate for multi-course facilities — keep the set closest to course center
+      const holeCounts = {};
+      rawHoles.forEach(h => { holeCounts[h.hole] = (holeCounts[h.hole] || 0) + 1; });
+      if (Object.values(holeCounts).some(c => c > 1)) {
+        const byRef = {};
+        rawHoles.forEach(h => { if (!byRef[h.hole]) byRef[h.hole] = []; byRef[h.hole].push(h); });
+        rawHoles.length = 0;
+        Object.values(byRef).forEach(group => {
+          group.sort((a, b) => haversineKm(courseLat, courseLng, a.teeLat, a.teeLng) - haversineKm(courseLat, courseLng, b.teeLat, b.teeLng));
+          rawHoles.push(group[0]);
         });
-        if (!resp.ok) throw new Error('Overpass API error');
-        const data = await resp.json();
+      }
 
-        if (!data.elements || data.elements.length === 0) {
-          throw new Error('No hole data found');
+      rawHoles.sort((a, b) => a.hole - b.hole);
+
+      let holes;
+      if (numHoles === 9) {
+        holes = rawHoles.filter(h => h.hole >= 1 && h.hole <= 9);
+        if (holes.length < 7) { holes = rawHoles.filter(h => h.hole >= 10 && h.hole <= 18).map((h, i) => ({ ...h, hole: i + 1 })); }
+        if (holes.length < 7) { holes = rawHoles.slice(0, numHoles).map((h, i) => ({ ...h, hole: i + 1 })); }
+      } else {
+        holes = rawHoles.filter(h => h.hole >= 1 && h.hole <= 18);
+        if (holes.length < 14) { holes = rawHoles.slice(0, numHoles).map((h, i) => ({ ...h, hole: i + 1 })); }
+      }
+
+      while (holes.length < numHoles) {
+        const last = holes[holes.length - 1];
+        holes.push({ hole: holes.length + 1, par: 4, yards: 350, teeLat: last.greenLat, teeLng: last.greenLng, greenLat: last.greenLat + 0.002, greenLng: last.greenLng + 0.001, handicap: null });
+      }
+      holes = holes.slice(0, numHoles);
+      return holes;
+    }
+
+    // Get course hole data: OSM real geometry (always first) → merge with scorecard → fallback
+    async function fetchCourseHoleData(courseLat, courseLng, numHoles, teeColor, courseName) {
+      const scorecard = (courseName && COURSE_DATA[courseName]) ? COURSE_DATA[courseName] : null;
+      const cLat = scorecard && scorecard.center ? scorecard.center[0] : courseLat;
+      const cLng = scorecard && scorecard.center ? scorecard.center[1] : courseLng;
+
+      // 1. Check cache
+      const cacheKey = `${cLat.toFixed(4)},${cLng.toFixed(4)},${numHoles}`;
+      if (courseHoleCache[cacheKey]) {
+        const cached = courseHoleCache[cacheKey].map(h => ({ ...h }));
+        if (scorecard) {
+          mergeScorecard(cached, scorecard, teeColor);
+          return cached;
         }
+        return applyTeeScaling(cached, teeColor);
+      }
 
-        const rawHoles = data.elements
-          .filter(el => el.geometry && el.geometry.length >= 2 && el.tags)
-          .map(el => {
-            const geom = el.geometry;
-            const teeLat = geom[0].lat;
-            const teeLng = geom[0].lon;
-            const greenLat = geom[geom.length - 1].lat;
-            const greenLng = geom[geom.length - 1].lon;
-            let totalMeters = 0;
-            for (let i = 1; i < geom.length; i++) {
-              totalMeters += haversineKm(geom[i-1].lat, geom[i-1].lon, geom[i].lat, geom[i].lon) * 1000;
-            }
-            const yards = Math.round(totalMeters * 1.09361);
-            const ref = parseInt(el.tags.ref) || 0;
-            const par = parseInt(el.tags.par) || estimateParFromYards(yards);
-            const handicap = parseInt(el.tags.handicap) || null;
-            return { hole: ref, par, yards, teeLat, teeLng, greenLat, greenLng, handicap };
-          })
-          .filter(h => h.hole > 0);
+      // 2. Always try OSM first for real tee/green GPS coordinates
+      try {
+        const osmHoles = await fetchOsmHoleGeometry(cLat, cLng, numHoles);
+        courseHoleCache[cacheKey] = osmHoles;
 
-        if (rawHoles.length === 0) throw new Error('No valid hole data');
-
-        // Deduplicate for multi-course facilities
-        const holeCounts = {};
-        rawHoles.forEach(h => { holeCounts[h.hole] = (holeCounts[h.hole] || 0) + 1; });
-        if (Object.values(holeCounts).some(c => c > 1)) {
-          const byRef = {};
-          rawHoles.forEach(h => { if (!byRef[h.hole]) byRef[h.hole] = []; byRef[h.hole].push(h); });
-          rawHoles.length = 0;
-          Object.values(byRef).forEach(group => {
-            group.sort((a, b) => haversineKm(courseLat, courseLng, a.teeLat, a.teeLng) - haversineKm(courseLat, courseLng, b.teeLat, b.teeLng));
-            rawHoles.push(group[0]);
-          });
+        const holes = osmHoles.map(h => ({ ...h }));
+        if (scorecard) {
+          // Merge verified scorecard data (par, yards, handicap) onto OSM coordinates
+          // Scorecard already has exact yards for the selected tee, so no tee scaling needed
+          mergeScorecard(holes, scorecard, teeColor);
+          return holes;
         }
-
-        rawHoles.sort((a, b) => a.hole - b.hole);
-
-        let holes;
-        if (numHoles === 9) {
-          holes = rawHoles.filter(h => h.hole >= 1 && h.hole <= 9);
-          if (holes.length < 7) { holes = rawHoles.filter(h => h.hole >= 10 && h.hole <= 18).map((h, i) => ({ ...h, hole: i + 1 })); }
-          if (holes.length < 7) { holes = rawHoles.slice(0, numHoles).map((h, i) => ({ ...h, hole: i + 1 })); }
-        } else {
-          holes = rawHoles.filter(h => h.hole >= 1 && h.hole <= 18);
-          if (holes.length < 14) { holes = rawHoles.slice(0, numHoles).map((h, i) => ({ ...h, hole: i + 1 })); }
-        }
-
-        while (holes.length < numHoles) {
-          const last = holes[holes.length - 1];
-          holes.push({ hole: holes.length + 1, par: 4, yards: 350, teeLat: last.greenLat, teeLng: last.greenLng, greenLat: last.greenLat + 0.002, greenLng: last.greenLng + 0.001, handicap: null });
-        }
-        holes = holes.slice(0, numHoles);
-
-        courseHoleCache[cacheKey] = holes;
+        // No scorecard — scale OSM yards by tee factor
         return applyTeeScaling(holes, teeColor);
       } catch (e) {
         console.warn('OSM hole data unavailable:', e.message);
       }
 
-      // 4. Fallback: use course center with standard par layout
-      // Satellite will at least show the actual course property
+      // 3. Fallback: hardcoded scorecard with estimated layout (if available)
+      if (scorecard) {
+        const requestedHoles = Math.min(numHoles, scorecard.par.length);
+        return buildHoleDataFromScorecard(scorecard, requestedHoles, teeColor, courseLat, courseLng);
+      }
+
+      // 4. Last resort: generic layout around course center
       const fallbackPars = numHoles === 18
         ? [4,4,3,5,4,4,3,5,4, 4,3,5,4,4,3,4,5,4]
         : [4,3,5,4,4,3,4,5,4];
@@ -3915,6 +3936,18 @@
           greenLng: teeLng + Math.sin(holeAngle) * holeDist, handicap: null });
       }
       return holes;
+    }
+
+    // Merge verified scorecard data onto OSM hole coordinates
+    // Uses real tee/green positions from OSM but overrides par, yards, handicap from scorecard
+    function mergeScorecard(holes, scorecard, teeColor) {
+      const pars = scorecard.par;
+      const teeYards = scorecard.yards[teeColor] || scorecard.yards.white || Object.values(scorecard.yards)[0];
+      for (let i = 0; i < holes.length && i < pars.length; i++) {
+        holes[i].par = pars[i];
+        if (teeYards && teeYards[i]) holes[i].yards = teeYards[i];
+        if (scorecard.hcp && scorecard.hcp[i]) holes[i].handicap = scorecard.hcp[i];
+      }
     }
 
     // Estimate par from yardage when OSM doesn't have par tag
@@ -4306,8 +4339,8 @@
           gameState.startTime = new Date(gameState.startTime);
           gameState.gpsWatchId = null;
 
-          // Refresh hole data if saved with old fake data (no dataVersion marker)
-          if (!gameState.dataVersion || gameState.dataVersion < 2) {
+          // Refresh hole data if saved with old fake coordinates
+          if (!gameState.dataVersion || gameState.dataVersion < 3) {
             const courseName = gameState.course ? gameState.course.name : null;
             const courseLat = gameState.course ? gameState.course.lat : 0;
             const courseLng = gameState.course ? gameState.course.lng : 0;
@@ -4315,7 +4348,7 @@
             const refreshed = await fetchCourseHoleData(courseLat, courseLng, gameState.holes, tees, courseName);
             if (refreshed) {
               gameState.holeData = refreshed;
-              gameState.dataVersion = 2;
+              gameState.dataVersion = 3;
               saveGameState();
             }
           }
