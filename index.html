@@ -4456,10 +4456,10 @@
         minZoom: 14
       });
 
-      // Satellite tile layer — Esri World Imagery (free, high quality)
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        maxZoom: 20,
-        maxNativeZoom: 18
+      // Google Maps satellite tiles — same imagery as 18Birdies
+      L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 21,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
       }).addTo(holeMap);
 
       // Click to place/move target when shot planner is active
