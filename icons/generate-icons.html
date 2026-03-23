@@ -1,47 +1,91 @@
 <!DOCTYPE html>
 <html>
-<body>
-<canvas id="c192" width="192" height="192"></canvas>
-<canvas id="c512" width="512" height="512"></canvas>
-<canvas id="c180" width="180" height="180"></canvas>
+<head><title>Generate Match Play Icons</title></head>
+<body style="font-family: sans-serif; padding: 20px;">
+<h2>Match Play Icon Generator</h2>
+<p>Click each button to download the icon PNG. You need all of these for app store submission.</p>
+<div id="canvases"></div>
+<div id="buttons" style="margin-top: 20px;"></div>
 <script>
-function drawIcon(canvas) {
+const sizes = [
+  { name: 'icon-180', size: 180, maskable: false },
+  { name: 'icon-192', size: 192, maskable: false },
+  { name: 'icon-512', size: 512, maskable: false },
+  { name: 'icon-maskable-192', size: 192, maskable: true },
+  { name: 'icon-maskable-512', size: 512, maskable: true }
+];
+
+function drawIcon(canvas, maskable) {
   const s = canvas.width;
   const ctx = canvas.getContext('2d');
-  // Background
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  ctx.roundRect(0, 0, s, s, s * 0.2);
-  ctx.fill();
+  // Maskable icons need safe zone (inner 80%) with full bleed background
+  const pad = maskable ? s * 0.1 : 0;
+  const inner = s - pad * 2;
+
+  // Background - full canvas for maskable
+  ctx.fillStyle = '#0D3520';
+  if (maskable) {
+    ctx.fillRect(0, 0, s, s);
+  } else {
+    ctx.beginPath();
+    ctx.roundRect(0, 0, s, s, s * 0.2);
+    ctx.fill();
+  }
+
+  const cx = s / 2;
   // Golf ball circle
-  ctx.fillStyle = '#6366f1';
+  ctx.fillStyle = '#2EAD56';
   ctx.beginPath();
-  ctx.arc(s/2, s * 0.42, s * 0.22, 0, Math.PI * 2);
+  ctx.arc(cx, pad + inner * 0.38, inner * 0.2, 0, Math.PI * 2);
   ctx.fill();
-  // Flag
-  ctx.strokeStyle = '#22c55e';
-  ctx.lineWidth = s * 0.02;
+
+  // Flag pole
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = inner * 0.02;
   ctx.beginPath();
-  ctx.moveTo(s * 0.5, s * 0.2);
-  ctx.lineTo(s * 0.5, s * 0.65);
+  ctx.moveTo(cx, pad + inner * 0.18);
+  ctx.lineTo(cx, pad + inner * 0.6);
   ctx.stroke();
+
   // Flag triangle
-  ctx.fillStyle = '#22c55e';
+  ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.moveTo(s * 0.5, s * 0.2);
-  ctx.lineTo(s * 0.68, s * 0.28);
-  ctx.lineTo(s * 0.5, s * 0.36);
+  ctx.moveTo(cx, pad + inner * 0.18);
+  ctx.lineTo(cx + inner * 0.17, pad + inner * 0.26);
+  ctx.lineTo(cx, pad + inner * 0.34);
   ctx.fill();
+
   // Text
-  ctx.fillStyle = '#f1f5f9';
-  ctx.font = `bold ${s * 0.11}px -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${inner * 0.11}px -apple-system, system-ui, sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillText('MATCH', s/2, s * 0.78);
-  ctx.fillText('PLAY', s/2, s * 0.9);
+  ctx.fillText('MATCH', cx, pad + inner * 0.76);
+  ctx.fillText('PLAY', cx, pad + inner * 0.88);
 }
-drawIcon(document.getElementById('c192'));
-drawIcon(document.getElementById('c512'));
-drawIcon(document.getElementById('c180'));
+
+const container = document.getElementById('canvases');
+const buttons = document.getElementById('buttons');
+
+sizes.forEach(({ name, size, maskable }) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  canvas.style.margin = '8px';
+  canvas.style.border = '1px solid #ccc';
+  container.appendChild(canvas);
+  drawIcon(canvas, maskable);
+
+  const btn = document.createElement('button');
+  btn.textContent = `Download ${name}.png (${size}x${size})`;
+  btn.style.cssText = 'display:block; margin:6px 0; padding:8px 16px; cursor:pointer; font-size:14px;';
+  btn.onclick = () => {
+    const a = document.createElement('a');
+    a.download = `${name}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  buttons.appendChild(btn);
+});
 </script>
 </body>
 </html>
