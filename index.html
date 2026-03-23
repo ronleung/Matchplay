@@ -4103,9 +4103,19 @@
 
         html += `<td class="total-td">${segTotal || '-'}</td>`;
 
-        // Match play status column
+        // Match play status column — show badge on the row of the player who is UP
         if (isMatch) {
-          if (pi > 0) {
+          if (gameState.players.length === 2) {
+            const matchInfo = calcMatchPlayStatus(gameState.players[0].id, gameState.players[1].id);
+            // score > 0 means player 0 is up, score < 0 means player 1 is up
+            const showOnThisRow = (pi === 0 && matchInfo.score > 0) || (pi === 1 && matchInfo.score < 0) || (matchInfo.score === 0 && pi === 1);
+            if (showOnThisRow) {
+              const displayInfo = pi === 0 ? matchInfo : calcMatchPlayStatus(gameState.players[1].id, gameState.players[0].id);
+              html += `<td class="status-td"><span class="lg-match-status ${displayInfo.cls}">${displayInfo.text}</span></td>`;
+            } else {
+              html += '<td></td>';
+            }
+          } else if (pi > 0) {
             const matchInfo = calcMatchPlayStatus(gameState.players[0].id, p.id);
             html += `<td class="status-td"><span class="lg-match-status ${matchInfo.cls}">${matchInfo.text}</span></td>`;
           } else {
